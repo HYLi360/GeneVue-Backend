@@ -1,13 +1,13 @@
 [project]
 name = "GeneVue"
-version = "0.0.2"
+dynamic = ["version"]
 description = "Python backend of GeneVue."
 authors = [
-    { name = "hyli360", email = "lhy2689323523@163.com" }
+    { name = "hyli360", email = "lihuanyu2003@gmail.com" }
 ]
 license = "GPL-3.0-only"
 license-files = ["LICEN[CS]E*"]
-requires-python = ">=3.12"
+requires-python = ">=3.11"
 dependencies = [
     "aiohttp>=3.13.3",
     "biopython>=1.86",
@@ -34,18 +34,21 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering :: Bio-Informatics",
 ]
+
 [project.optional-dependencies]
 dev = ["pytest", "pytest-cov", "pytest-mpl", "coverage"]
+
 [[tool.uv.index]]
 name = "GeneVue-cli"
 url = "https://test.pypi.org/simple/"
 publish-url = "https://test.pypi.org/legacy/"
 explicit = true
+
 [project.scripts]
 genevue = "genevue.main:app"
 
 [build-system]
-requires = ["uv_build>=0.10.10,<0.11.0"]
+requires = ["uv_build>=0.11.11,<0.12"]
 build-backend = "uv_build"
 
 [tool.pytest.ini_options]
@@ -62,6 +65,7 @@ addopts = """
 junit_family=legacy
 --mpl
 """
+
 # Add it if you just want to generate baseline...
 # --mpl-generate-path=tests/baseline
 testpaths = ["tests"]
