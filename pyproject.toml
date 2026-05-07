@@ -1,6 +1,6 @@
 [project]
 name = "GeneVue"
-dynamic = ["version"]
+version = "0.0.2"
 description = "Python backend of GeneVue."
 authors = [
     { name = "hyli360", email = "lihuanyu2003@gmail.com" }
