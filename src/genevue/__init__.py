@@ -15,7 +15,7 @@ from rich.console import Console as RichConsole
 from rich.logging import RichHandler
 from rich.traceback import install
 
-__version__ = "0.0.2"
+__version__ = "0.0.3"
 __nickname__ = "TESTING"
 
 __full_version__ = f"{__version__} {__nickname__}"
