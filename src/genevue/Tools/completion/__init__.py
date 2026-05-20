@@ -12,7 +12,9 @@ from pathlib import Path
 
 import shellingham
 
-from genevue import console
+from genevue import console, setup_rich_logger
+
+logger = setup_rich_logger(__name__, console)
 
 COMPLETION_SCRIPT_BASH = """
 _genevue_completion() {
@@ -76,13 +78,13 @@ def _get_script(shell_name: str) -> str:
         "pwsh": COMPLETION_SCRIPT_POWER_SHELL,
     }
 
-    return script_dict.get(shell_name)
+    return script_dict.get(shell_name, "")
 
 
 def install_completion() -> None:
     shell_name = _which_shell()
     script = _get_script(shell_name)
-    console.info(f"Shell type '{shell_name}' detected.")
+    logger.info(f"Shell type '{shell_name}' detected.")
 
     def bash():
         completion_script_path = Path.home() / ".bash_completions" / "genevue.sh"
@@ -91,7 +93,7 @@ def install_completion() -> None:
         rc_path.parent.mkdir(exist_ok=True, parents=True)
 
         # Write the script in f".bash_completions/genevue.sh"
-        console.info(f"Write auto-completion module on {completion_script_path}.")
+        logger.info(f"Write auto-completion module on {completion_script_path}.")
         with open(completion_script_path, "w") as completion_script_handler:
             completion_script_handler.write(script)
 
@@ -100,10 +102,10 @@ def install_completion() -> None:
         with open(rc_path, "r") as rc_handler_r:
             for line in rc_handler_r:
                 if line == f"source '{completion_script_path}'\n":
-                    console.info(".bashrc has been configured before install.")
+                    logger.info(".bashrc has been configured before install.")
                     return
 
-        console.info(f"Setting user's .bashrc configures. on {rc_path}.")
+        logger.info(f"Setting user's .bashrc configures. on {rc_path}.")
         with open(rc_path, "a") as rc_handler_w:
             rc_handler_w.write(
                 "# ---This script was appended by GeneVue---\n"
@@ -125,7 +127,7 @@ def install_completion() -> None:
     }
 
     install_instructions_dict.get(shell_name)()
-    console.info(
+    logger.info(
         "Auto-complete module installed. Changes will take effect when you restart the shell.\n"
         "Run 'genevue uninstall' to remove this module."
     )
@@ -139,14 +141,14 @@ def uninstall_completion() -> None:
         rc_path = Path.home() / ".bashrc"
 
         # Delete ".bash_completions/genevue.sh"
-        console.info(f"Removing {completion_script_path}.")
+        logger.info(f"Removing {completion_script_path}.")
         try:
             os.remove(completion_script_path)
         except FileNotFoundError:
             console.warn(f"Not found the script {completion_script_path}. Skipping.")
 
         # Remove the "source" line
-        console.info(f"Remove the source line in {rc_path}.")
+        logger.info(f"Remove the source line in {rc_path}.")
         new_bashrc_content = []
         with open(rc_path, "r") as rc_handler_r:
             for line in rc_handler_r:
@@ -165,4 +167,4 @@ def uninstall_completion() -> None:
     }
 
     uninstall_instructions_dict.get(shell_name)()
-    console.info("Auto-complete module uninstalled.")
+    logger.info("Auto-complete module uninstalled.")

@@ -3,7 +3,6 @@ from pathlib import Path
 import subprocess
 import shlex
 
-from genevue import console
 from multiprocessing import cpu_count
 from dataclasses import dataclass
 
@@ -43,12 +42,12 @@ class MAKEDB:
                     f"{self.db_path}",
                 ]
         # this branch should not be reached
-        console.error(f"Not identified MAKEDB method: {self.method}")
+        print(f"Not identified MAKEDB method: {self.method}")
         return []
 
     def run(self):
-        console.info(f"{self.method} BLASTp started.")
-        console.info(f"cmd: {' '.join(self.command)}")
+        print(f"{self.method} BLASTp started.")
+        print(f"cmd: {' '.join(self.command)}")
         subprocess.run(self.command)
 
     def res_parser(self):
@@ -142,12 +141,12 @@ class BLASTp:
             case "MMseqs2":
                 return []
         # this branch should not be reached
-        console.error(f"Not identified blastp method: {self.method}")
+        print(f"Not identified blastp method: {self.method}")
         return []
 
     def run(self):
-        console.info(f"{self.method} BLASTp started.")
-        console.info(f"cmd: {shlex.join(self.command)}")
+        print(f"{self.method} BLASTp started.")
+        print(f"cmd: {shlex.join(self.command)}")
         subprocess.run(self.command)
 
     def parse_blast6(self, hi_evalue: float, lo_bitscore: float):

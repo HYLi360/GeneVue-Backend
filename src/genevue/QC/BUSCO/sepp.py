@@ -12,6 +12,8 @@ License: Licensed under the MIT license. See LICENSE.md file.
 
 """
 
+#!todo: integrate sepp
+
 from genevue.QC.BUSCO.base import BaseRunner
 import os
 from genevue.QC.BUSCO.BuscoLogger import BuscoLogger

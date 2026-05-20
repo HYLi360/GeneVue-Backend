@@ -3,7 +3,6 @@ import sys
 import typer
 from typing import Optional, Literal
 
-from genevue import console
 from genevue.l10n import _
 from genevue.QC.BUSCO import __version__
 from genevue.QC.BUSCO.BuscoLogger import BuscoLogger
@@ -185,88 +184,98 @@ def busco(
         None,
         "-m",
         "--mode",
-        help="Specify which BUSCO analysis mode to run. "
-        "There are three valid modes: [green]geno[/green] or [green]genome[/green], for genome assemblies (DNA;) [green]"
-        "tran[/green] or [green]transcriptome[/green], for transcriptome assemblies (DNA;) [green]prot[/green] or [green]"
-        "proteins[/green], for annotated gene sets (protein.)",
+        help=_(
+            "Specify which BUSCO analysis mode to run. "
+            "There are three valid modes: [green]geno[/green] or [green]genome[/green], for genome assemblies (DNA;) [green]"
+            "tran[/green] or [green]transcriptome[/green], for transcriptome assemblies (DNA;) [green]prot[/green] or [green]"
+            "proteins[/green], for annotated gene sets (protein.)"
+        ),
     ),
     lineage_dataset: Optional[str] = typer.Option(
         None,
         "-l",
         "--lineage-dataset",
         metavar="LINEAGE",
-        help="Specify the name of the BUSCO lineage to be used.",
+        help=_("Specify the name of the BUSCO lineage to be used."),
     ),
     use_augustus: bool = typer.Option(
         False,
         "--use-augustus",
         is_flag=True,
-        help="Use augustus gene predictor for eukaryote runs",
+        help=_("Use augustus gene predictor for eukaryote runs"),
     ),
     augustus_parameters: Optional[str] = typer.Option(
         None,
         "--augustus_parameters",
         metavar='"--PARAM1=VALUE1,--PARAM2=VALUE2"',
-        help="Pass additional arguments to Augustus. All arguments should be contained within a "
-        "single string with no white space, with each argument separated by a comma.",
+        help=_(
+            "Pass additional arguments to Augustus. All arguments should be contained within a "
+            "single string with no white space, with each argument separated by a comma."
+        ),
     ),
     augustus_species: Optional[str] = typer.Option(
         None,
         "--augustus_species",
-        help="Specify a species for Augustus training.",
+        help=_("Specify a species for Augustus training."),
     ),
     is_auto_lineage: bool = typer.Option(
         False,
         "--auto-lineage",
         is_flag=True,
-        help="Run auto-lineage to find optimum lineage path.",
+        help=_("Run auto-lineage to find optimum lineage path."),
     ),
     is_auto_lineage_euk: bool = typer.Option(
         False,
         "--auto-lineage-euk",
         is_flag=True,
-        help="Run auto-placement just on eukaryote tree to find optimum lineage path",
+        help=_(
+            "Run auto-placement just on eukaryote tree to find optimum lineage path"
+        ),
     ),
     is_auto_lineage_prok: bool = typer.Option(
         False,
         "--auto-lineage-prok",
         is_flag=True,
-        help="Run auto-lineage just on non-eukaryote trees to find optimum lineage path",
+        help=_(
+            "Run auto-lineage just on non-eukaryote trees to find optimum lineage path"
+        ),
     ),
     threads_num: Optional[int] = typer.Option(
         None,
         "-c",
         "--cpu",
         metavar="N",
-        help="Specify the number of threads/cores to use.",
+        help=_("Specify the number of threads/cores to use."),
     ),
     config_file_path: Optional[str] = typer.Option(
-        None, "--config", help="Provide a config file."
+        None, "--config", help=_("Provide a config file.")
     ),
     config_break_num: Optional[int] = typer.Option(
         None,
         "--contig_break",
         metavar="n",
-        help="Number of contiguous Ns to signify a break between contigs.",
+        help=_("Number of contiguous Ns to signify a break between contigs."),
     ),
     dataset_version: Optional[Literal["odb10", "odb12"]] = typer.Option(
-        None, "--datasets_version", help="Specify the version of BUSCO datasets"
+        None, "--datasets_version", help=_("Specify the version of BUSCO datasets")
     ),
     download: Optional[str] = typer.Option(
         None,
         "--download",
-        help='Download dataset. Possible values are a specific dataset name, "all", "prokaryota", "eukaryota", '
-        'or "virus". If used together with other command line arguments, make sure to place this last.',
+        help=_(
+            'Download dataset. Possible values are a specific dataset name, "all", "prokaryota", "eukaryota", '
+            'or "virus". If used together with other command line arguments, make sure to place this last.'
+        ),
     ),
     download_base_url: Optional[str] = typer.Option(
         None,
         "--download_base_url",
-        help="Set the url to the remote BUSCO dataset location",
+        help=_("Set the url to the remote BUSCO dataset location"),
     ),
     download_path: Optional[str] = typer.Option(
         None,
         "--download_path",
-        help="Specify local filepath for storing BUSCO dataset downloads",
+        help=_("Specify local filepath for storing BUSCO dataset downloads"),
     ),
     blast_max_evalue: float = typer.Option(
         BaseConfig.BLAST_ARGS["evalue"],
@@ -357,36 +366,38 @@ def busco(
         False,
         "--plot_percentages",
         is_flag=True,
-        help="Plot the percentages of BUSCOs instead of the number of BUSCOs. To be used as an option with --plot.",
+        help=_(
+            "Plot the percentages of BUSCOs instead of the number of BUSCOs. To be used as an option with --plot."
+        ),
     ),
     is_quiet: bool = typer.Option(
         False,
         "-q",
         "--quiet",
         is_flag=True,
-        help="Disable the info logs, displays only errors",
+        help=_("Disable the info logs, displays only errors"),
     ),
     is_restart: bool = typer.Option(
         False,
         "-r",
         "--restart",
         is_flag=True,
-        help="Continue a run that had already partially completed.",
+        help=_("Continue a run that had already partially completed."),
     ),
     is_scaffold_composition: bool = typer.Option(
         False,
         "--scaffold_composition",
         is_flag=True,
-        help="Writes ACGTN content per scaffold to a file scaffold_composition.txt",
+        help=_("Writes ACGTN content per scaffold to a file scaffold_composition.txt"),
     ),
     is_tar_output: bool = typer.Option(
         False,
         "--tar",
         is_flag=True,
-        help="Compress some subdirectories with many files to save space",
+        help=_("Compress some subdirectories with many files to save space"),
     ),
     is_version: bool = typer.Option(
-        False, "-v", "--version", is_flag=True, help="Show this version and exit"
+        False, "-v", "--version", is_flag=True, help=_("Show this version and exit")
     ),
 ):
     params = _build_params(
@@ -428,8 +439,8 @@ def busco(
     )
 
     if is_version:
-        console.print(
-            f"\n[blue]BUSCO {__version__}[/blue] for [green]GeneVue[/green].\n"
+        print(
+            f"\nBUSCO {__version__} for GeneVue.\n"
             "BUSCO: the Benchmarking Universal Single-Copy Ortholog assessment tool.\n"
             "Need help? Check https://busco.ezlab.org/busco_userguide.html\n"
             "Already used BUSCO? Check https://gitlab.com/ezlab/busco#how-to-cite-busco\n"

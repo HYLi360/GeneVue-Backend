@@ -44,14 +44,14 @@ logger = BuscoLogger.get_logger(__name__)
 
 
 @log(
-    "Start a [blue]BUSCO v{}[/blue] analysis, current time: [green]{}[/green]".format(
+    "Start a BUSCO v{} analysis, current time: {}".format(
         BUSCO.__version__, time.strftime("%m/%d/%Y %H:%M:%S")
     ),
     logger,
 )
 class BuscoMaster:
 
-    run_stats = {"versions": {"python": sys.version_info, "BUSCO": BUSCO.__version__}}
+    run_stats = {"versions": {"python": sys.version_info, "busco": BUSCO.__version__}}
 
     def __init__(self, params):
         self.params = params

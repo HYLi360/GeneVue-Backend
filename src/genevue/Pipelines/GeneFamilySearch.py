@@ -6,7 +6,7 @@ import Bio.SeqIO
 from genevue.external.Blaster import BLASTp, MAKEDB
 from genevue.external.HMMER3 import HMMSEARCH
 from genevue.Pipelines import Pipeline
-from genevue.utils.parse import record_filter
+from genevue.utils.parse import records_filter
 
 Pipeline_GeneFamilySearch = Pipeline()
 
@@ -57,6 +57,6 @@ def _extract(
     cross = set(hmmsearch_entries) & set(blastp_entries)
     with open(Path(record_output_path).resolve(), "w+") as f:
         Bio.SeqIO.write(
-            record_filter(Path(pep_path).resolve(), list(cross)).values(), f, "fasta"
+            records_filter(Path(pep_path).resolve(), list(cross)).values(), f, "fasta"
         )
-    return list(record_filter(Path(pep_path).resolve(), list(cross)).values())
+    return list(records_filter(Path(pep_path).resolve(), list(cross)).values())

@@ -3,76 +3,21 @@
 #   and comes with ABSOLUTELY NO WARRANTY.
 #   See at <https://www.gnu.org/licenses/gpl-3.0.en.html>
 
+import json
 import tempfile
 from functools import singledispatch
 from pathlib import Path
 from typing import Optional
 
 import pandas as pd
-from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from rich.text import Text
 
-from genevue import console
+from genevue import console, setup_rich_logger
 from genevue.utils import pairwise_re, mcscan_info_line, yn00_res_re
-import json
 
-
-@singledispatch
-def record_filter(
-    records: Path | list[SeqRecord] | dict[str, SeqRecord], record_id_list: list[str]
-) -> dict[str, SeqRecord]: ...
-
-
-@record_filter.register
-def _(records: Path, record_id_list: list) -> dict[str, SeqRecord]:
-    if len(record_id_list) == 0:
-        raise RuntimeError("record_id_list is empty")
-    # resolve and check exists
-    path = records.resolve()
-    if not path.exists():
-        raise FileNotFoundError(f"Can not find sequence file: {str(records)}")
-    # read the file
-    records = {record.id: record for record in SeqIO.parse(str(path), "fasta")}
-    # filt
-    new_records = {}
-    for record_id in record_id_list:
-        try:
-            new_records[record_id] = records[record_id]
-        except KeyError:
-            continue
-    return new_records
-
-
-@record_filter.register
-def _(records: list, record_id_list: list) -> dict[str, SeqRecord]:
-    if len(record_id_list) == 0:
-        raise RuntimeError("record_id_list is empty")
-    # expand the list
-    records = {record.id: record for record in records}
-    # filt
-    new_records = {}
-    for record_id in record_id_list:
-        try:
-            new_records[record_id] = records[record_id]
-        except KeyError:
-            continue
-    return new_records
-
-
-@record_filter.register
-def _(records: dict, record_id_list: list) -> dict[str, SeqRecord]:
-    if len(record_id_list) == 0:
-        raise RuntimeError("record_id_list is empty")
-    # filt
-    new_records = {}
-    for record_id in record_id_list:
-        try:
-            new_records[record_id] = records[record_id]
-        except KeyError:
-            continue
-    return new_records
+logger = setup_rich_logger(__name__, console)
 
 
 def blast6reader(
@@ -215,6 +160,43 @@ def coll_res_reader(mcscan_res_path: str) -> pd.DataFrame:
                 "direction": int,
             },
         )
+
+
+def bed_reader(bed_path: Path) -> pd.DataFrame:
+    return pd.read_csv(
+        bed_path,
+        sep="\t",
+        header=None,
+        names=[
+            "chrom",
+            "chromStart",
+            "chromEnd",
+            "name",
+            "score",
+            "strand",
+            "thickStart",
+            "thickEnd",
+            "itemRgb",
+            "blockCount",
+            "blockSizes",
+            "blockStarts",
+        ],
+        dtype={
+            "chrom": str,
+            "chromStart": int,
+            "chromEnd": int,
+            "name": str,
+            "score": float,
+            "strand": str,
+            "thickStart": int,
+            "thickEnd": int,
+            "itemRgb": str,
+            "blockCount": int,
+            "blockSizes": int,
+            "blockStarts": int,
+        },
+        comment="#",
+    )
 
 
 @singledispatch

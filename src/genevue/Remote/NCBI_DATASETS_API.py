@@ -10,9 +10,10 @@ from typing import List, Literal, Optional
 
 import requests
 
-from genevue import console
-from genevue import local_configure
-from genevue.utils.network import Downloader
+from genevue import setup_rich_logger, console
+from genevue.utils.network import DownloadManager
+
+logger = setup_rich_logger(__name__, console)
 
 API_VERSION = "v2"
 DATASET_API_BASE_URL = f"https://api.ncbi.nlm.nih.gov/datasets/{API_VERSION}"
@@ -39,11 +40,12 @@ class Datasets4Genome:
         chunk_size: int = 20,
         target_dir: Path = Path(".").resolve(),
         zip_name: str = "ncbi_dataset",
+        apikey: Optional[str] = None,
         generate_symlinks: bool = False,
         force_make_new_dir: bool = False,
     ):
         self.type = "genome"
-        console.info(f"Downloading {self.type} by NCBI Datasets API.")
+        logger.info(f"Downloading {self.type} by NCBI Datasets API.")
         self.foldpath = Path(target_dir)
         self.zip_name = zip_name
         self.filepath = Path(target_dir) / f"{zip_name}.zip"
@@ -61,10 +63,10 @@ class Datasets4Genome:
             self.accession: str = ", ".join(accessions)
             self.accession_list: List[str] = accessions
         else:
-            console.error(
+            logger.error(
                 f"Not supported accession argument type: except 'str' or 'List[str]', but received {type(accessions)}"
             )
-        console.info(f"Accession:   {self.accession}")
+        logger.info(f"Accession:   {self.accession}")
 
         if isinstance(chromosomes, str):
             self.chromosome: str = chromosomes
@@ -76,10 +78,10 @@ class Datasets4Genome:
             self.chromosome: str = ""
             self.chromosome_list: List[str] = []
         else:
-            console.error(
+            logger.error(
                 f"Not supported chromosome argument type: except 'str' or 'List[str]', but received {type(chromosomes)}"
             )
-        console.info(
+        logger.info(
             f"chromosome:  {'Not Specified' if self.chromosome == '' else self.chromosome}"
         )
 
@@ -94,23 +96,22 @@ class Datasets4Genome:
                 [include_item.value for include_item in include]
             )
         else:
-            console.error(
+            logger.error(
                 f"Not supported include argument type: except 'str' or 'List[str]', but received {type(include)}"
             )
-        console.info(f"Include:     {self.include}")
+        logger.info(f"Include:     {self.include}")
 
         self.hydrated = "FULLY_HYDRATED" if hydrated else "DATA_REPORT_ONLY"
-        console.info(f"Hydrated:    {self.hydrated}")
+        logger.info(f"Hydrated:    {self.hydrated}")
 
-        self.apikey = local_configure.get_apikey("NCBI")
-
+        self.apikey = apikey
         if self.apikey is None:
-            console.warn("You didn't provide NCBI Datasets API key!")
-            console.warn(
+            logger.warning("You didn't provide NCBI Datasets API key!")
+            logger.warning(
                 "This isn't a big deal, it only just reduce your maximum RPS from 10 to 5. "
                 "However, we still recommend that you apply for an API key."
             )
-            console.warn(
+            logger.warning(
                 "Visit https://www.ncbi.nlm.nih.gov/datasets/docs/v2/api/api-keys/ for more details."
             )
 
@@ -162,21 +163,21 @@ class Datasets4Genome:
             yield data[i : i + chunk_size]
 
     def _check_invalid_duplicated_accessions(self) -> None:
-        console.info("Start Check.")
-        console.info(f"Input accession: {len(self.accession_list)}")
+        logger.info("Start Check.")
+        logger.info(f"Input accession: {len(self.accession_list)}")
         need_update_accession_list_label = False
 
         # Check Duplicated
         new_accession_list = list(dict.fromkeys(self.accession_list))
-        console.info(
+        logger.info(
             f"Accessions count after remove duplicated: {len(new_accession_list)}"
         )
         if len(new_accession_list) != len(self.accession_list):
-            console.warn("Duplicate accession detected.")
+            logger.warning("Duplicate accession detected.")
             need_update_accession_list_label = True
 
         # Check Invalid
-        console.info(f"Try opening the url {self.request_check_url}")
+        logger.info(f"Try opening the url {self.request_check_url}")
         valid_accessions, invalid_accessions = [], []
 
         for chunk in self._chunk_iter(new_accession_list, 100):
@@ -188,14 +189,14 @@ class Datasets4Genome:
             invalid_accessions.extend(res.get("invalid_assemblies", []))
 
         if len(valid_accessions) != len(new_accession_list):
-            console.warn("Invalid accession detected.")
-            console.warn(f"Invalid accessions: {invalid_accessions}")
+            logger.warning("Invalid accession detected.")
+            logger.warning(f"Invalid accessions: {invalid_accessions}")
             need_update_accession_list_label = True
         else:
-            console.info("Accessions check passed.")
+            logger.info("Accessions check passed.")
 
         if need_update_accession_list_label:
-            console.warn("Accession list updated.")
+            logger.warning("Accession list updated.")
         self.accession_list = valid_accessions
 
     def download(self):
@@ -214,14 +215,14 @@ class Datasets4Genome:
         for order, chunk in enumerate(
             self._chunk_iter(accession_list_original, self.chunk_size)
         ):
-            console.info(f"Start download batch {order+1}.")
+            logger.info(f"Start download batch {order+1}.")
             self.accession_list = chunk
 
             # check
             self._check_invalid_duplicated_accessions()
 
             # download
-            downloader = Downloader(
+            downloader = DownloadManager(
                 self.request_download_url,
                 self.request_header,
                 self.foldpath
@@ -233,7 +234,7 @@ class Datasets4Genome:
             with zipfile.ZipFile(
                 self.foldpath / f"{self.zip_name}.{order+1}.zip", "r"
             ) as zipf:
-                console.info("Extracting.")
+                logger.info("Extracting.")
                 zipf.extractall(path=self.foldpath)
 
             # read md5.
@@ -385,25 +386,25 @@ class Datasets4Genome:
                         self.foldpath / "ncbi_dataset" / "data" / files_dict[include]
                     )
                 except KeyError:
-                    console.warn(f"Accession {accession} has no file of {include}")
+                    logger.warning(f"Accession {accession} has no file of {include}")
                     continue
 
                 # check md5.
                 with open(sub_file_path, "rb") as f:
-                    console.info(f"Checking {sub_file_path}")
+                    logger.info(f"Checking {sub_file_path}")
                     md5sum_hex = hashlib.file_digest(f, "md5").hexdigest()
                     if (
                         md5dict[f"ncbi_dataset/data/{files_dict[include]}"]
                         != md5sum_hex
                     ):
-                        console.warn(
+                        logger.warning(
                             f"Wrong md5 sum of {sub_file_path}! except {md5dict[files_dict[include]]}, get {md5sum_hex}"
                         )
                         continue
 
                 # create symlink.
                 if self.generate_symlinks:
-                    console.info(f"Set symlink for {sub_file_path}")
+                    logger.info(f"Set symlink for {sub_file_path}")
                     target = self.foldpath / "symlinks" / include / accession
                     target.parent.parent.mkdir(exist_ok=True)
                     target.parent.mkdir(exist_ok=True)

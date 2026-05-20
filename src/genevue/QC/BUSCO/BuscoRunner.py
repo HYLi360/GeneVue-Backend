@@ -481,7 +481,7 @@ class AnalysisRunner:
     results_datasets = []
     all_results = defaultdict(dict)
     selected_dataset = None
-    run_stats = {"versions": {"python": sys.version_info, "BUSCO": BUSCO.__version__}}
+    run_stats = {"versions": {"python": sys.version_info, "busco": BUSCO.__version__}}
 
     def __init__(self, config):
 

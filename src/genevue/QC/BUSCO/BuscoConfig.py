@@ -27,7 +27,7 @@ import glob
 import pprint
 import re
 import sys
-import genevue.QC.BUSCO
+import genevue.QC.BUSCO as BUSCO
 
 logger = BuscoLogger.get_logger(__name__)
 
@@ -70,7 +70,7 @@ class BaseConfig(ConfigParser, metaclass=ABCMeta):
 
     BBTOOLS_ARGS = {
         "contig_break": 10,
-        "scaffold_composition": False,
+        "rom genevue.configure import local_configurescaffold_composition": False,
         "skip_bbtools": False,
     }
 

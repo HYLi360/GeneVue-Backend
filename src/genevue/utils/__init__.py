@@ -1,6 +1,6 @@
 import re
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Iterable
 
 pairwise_re = re.compile(
     r"^\s*\d+\s+\d+\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)"
@@ -27,3 +27,12 @@ def header_detector(file_path: Path, format_type: Literal["gz", "bgz"]) -> bool:
         if byte == header:
             return True
         return False
+
+
+def deduplicate(iterable_obj: Iterable):
+    return list(dict.fromkeys(iterable_obj))
+
+
+def chunk_iter(data, chunk_size):
+    for i in range(0, len(data), chunk_size):
+        yield data[i : i + chunk_size]

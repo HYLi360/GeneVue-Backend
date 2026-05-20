@@ -4,12 +4,14 @@ import requests
 from pathlib import Path
 from dataclasses import dataclass
 
-from genevue import console
+from genevue import console, setup_rich_logger
 from rich.progress import Progress
+
+logger = setup_rich_logger(__name__)
 
 
 @dataclass
-class Downloader:
+class DownloadManager:
 
     def __init__(self, url: str, headers: dict, target_file_path: Path):
         self.url = url
@@ -51,12 +53,12 @@ class Downloader:
 
     def download(self):
         self.target_file_path_completed = self.target_file_path.resolve()
-        console.info(
+        logger.info(
             f"Start downloading from {self.url} to {self.target_file_path_completed}."
         )
         stream = requests.get(url=self.url, headers=self.headers, stream=True)
         if stream.headers.get("Content-Length") is None:
-            console.info(
+            logger.info(
                 "Unable to determine the file size. Progress bar has been disabled."
             )
             total_size = 0
@@ -88,6 +90,6 @@ class Downloader:
                         received, received / (time.time() - start_time)
                     )
                     progress.update(task_download, advance=received)
-        console.info(f"\n{r} received in {time.time() - start_time}s.")
+        logger.info(f"\n{r} received in {time.time() - start_time}s.")
 
         f_out.close()

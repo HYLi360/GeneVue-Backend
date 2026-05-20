@@ -1,6 +1,6 @@
 [project]
 name = "GeneVue"
-version = "0.0.4"
+version = "0.0.5"
 description = "Python backend of GeneVue."
 authors = [
     { name = "hyli360", email = "lihuanyu2003@gmail.com" }
@@ -10,6 +10,7 @@ license-files = ["LICEN[CS]E*"]
 requires-python = ">=3.11"
 dependencies = [
     "aiohttp>=3.13.3",
+    "bcbio-gff>=0.7.1",
     "biopython>=1.86",
     "duckdb>=1.5.2",
     "logomaker>=0.8.7",
@@ -44,7 +45,7 @@ publish-url = "https://test.pypi.org/legacy/"
 explicit = true
 
 [project.scripts]
-genevue = "genevue.main:app"
+genevue = "genevue.main:main"
 
 [build-system]
 requires = ["uv_build>=0.11.11,<0.12"]

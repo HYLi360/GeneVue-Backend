@@ -259,8 +259,11 @@ class BuscoLogger(logging.getLoggerClass()):
         except NoSectionError:
             pass
 
+        original_cls = logging.getLoggerClass()
         logging.setLoggerClass(BuscoLogger)
-        return logging.getLogger(name)
+        logger = logging.getLogger(name)
+        logging.setLoggerClass(original_cls)
+        return logger
 
     def warn(self, msg, *args, **kwargs):
         """

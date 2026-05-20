@@ -1,5 +1,7 @@
 """ """
 
+""" """
+
 import re
 import subprocess
 from pathlib import Path
@@ -12,19 +14,14 @@ from genevue.Pipelines import ProcessNode
 
 class HMMSEARCH(ProcessNode):
     def __init__(
-        self, phmm_probe_path: str | Path, seqs_path: str | Path, res_path: str | Path
+        self,
+        res_path: Path,
+        phmm_probe_path: Optional[Path] = None,
+        seqs_path: Optional[Path] = None,
     ) -> None:
-        self.phmm_probe_path = (
-            Path(phmm_probe_path).resolve()
-            if isinstance(phmm_probe_path, str)
-            else phmm_probe_path
-        )
-        self.seqs_path = (
-            Path(seqs_path).resolve() if isinstance(seqs_path, str) else seqs_path
-        )
-        self.res_path = (
-            Path(res_path).resolve() if isinstance(res_path, str) else res_path
-        )
+        self.phmm_probe_path = phmm_probe_path
+        self.seqs_path = seqs_path
+        self.res_path = res_path
         self.result_info = None
         self.result_table = None
         self.result_entries = None
@@ -41,9 +38,9 @@ class HMMSEARCH(ProcessNode):
 
     def run(self):
         subprocess.run(self.command)
-        self._parse_result()
+        self.parse_result()
 
-    def _parse_result(self):
+    def parse_result(self):
         regexls = [
             r"^# HMMER ([\d\.]+).+$",
             r"^# target sequence database:\s+(.+)$",

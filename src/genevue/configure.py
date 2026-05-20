@@ -1,9 +1,7 @@
-import json
+﻿import json
 import os
 from pathlib import Path
 from typing import Literal
-
-from rich import print
 
 HOME_PATH = Path(
     os.environ["APPDATA"] if os.name == "nt" else os.path.expanduser("~/.config")
@@ -22,6 +20,7 @@ CONFIG_DEFAULT = {
         "language": "zh_CN",
         "translate_path": TRANSLATE_PATH,
     },
+    "LOGLEVEL": 20,
     "PATH": {},
     "API_KEY": {"NCBI": ""},
     "E-MAIL": "",
@@ -36,29 +35,37 @@ class Configure:
             print(
                 f"Generate configure file to {HOME_PATH / 'genevue' / 'config.json'}."
             )
-            json.dump(CONFIG_DEFAULT, open(HOME_PATH / "genevue" / "config.json", "w"))
-        self.config: dict = json.load(open(HOME_PATH / "genevue" / "config.json"))
+            self._write(CONFIG_DEFAULT)
+        self.config = json.load(open(self.config_path))
 
-    def reset(self):
-        json.dump(CONFIG_DEFAULT, open(HOME_PATH / "genevue" / "config.json", "w"))
-        self.config: dict = json.load(open(HOME_PATH / "genevue" / "config.json"))
+    def _write(self, config_content: dict) -> None:
+        self.config_path.write_text(json.dumps(config_content, indent=2))
 
-    def set_apikey(self, service_provider: Literal["NCBI"], new_api_key: str):
-        self.config["API_KEY"][service_provider] = new_api_key
+    def save(self) -> None:
+        """Persist current in-memory config to disk."""
+        self._write(self.config)
 
-    def get_apikey(self, service_provider: Literal["NCBI"]):
-        return self.config["API_KEY"][service_provider]
+    def reset(self) -> None:
+        self._write(CONFIG_DEFAULT)
+        self.config: dict = CONFIG_DEFAULT
 
-    def set_email(self, new_email: str):
+    def set_apikey(self, provider: str, new_api_key: str) -> None:
+        self.config["API_KEY"][provider] = new_api_key
+
+    def get_apikey(self, provider: Literal["NCBI"]) -> None:
+        return self.config["API_KEY"][provider]
+
+    @property
+    def email(self) -> str:
+        return self.config["E-MAIL"]
+
+    def set_email(self, new_email: str) -> None:
         self.config["E-MAIL"] = new_email
         json.dump(self.config, open(HOME_PATH / "genevue" / "config.json", "w"))
 
-    def get_email(self):
-        return self.config["E-MAIL"]
-
     @property
-    def email(self):
-        return self.config["E-MAIL"]
+    def loglevel(self) -> str:
+        return self.config["LOGLEVEL"]
 
     def set_l10n(self, mode: Literal["change_lang", "change_ts_path"], new_value: str):
         match mode:
@@ -73,4 +80,4 @@ class Configure:
 
     @property
     def ts_path(self):
-        return self.config["localization"]["translate_path"]
+        return Path(self.config["localization"]["translate_path"])

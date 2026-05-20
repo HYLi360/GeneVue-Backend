@@ -226,7 +226,7 @@ class Tool(metaclass=ABCMeta):
         )  # Ensure args are tuples that can be unpacked. If no args, args=None, which is falsy,
         # and this evaluates to (None,)
         job = self.configure_job(*args)
-        job.run()
+        job.filter()
         self.nb_done = cnt.value
         if (
             self.nb_done == self.total

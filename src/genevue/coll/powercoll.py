@@ -11,7 +11,9 @@ import pandas as pd
 from numpy.typing import NDArray
 from rich.table import Table
 
-from genevue import console
+from genevue import console, setup_rich_logger
+
+logger = setup_rich_logger(__name__, console)
 
 
 class CollRes:
@@ -200,7 +202,7 @@ class Collinearity:
         if len(self.blast) == 0:
             raise RuntimeError("SimpleGFF3 and BLAST result do not seem to match.")
 
-        console.info(f"The filtered homologous gene pairs are {len(self.blast)}.")
+        logger.info(f"The filtered homologous gene pairs are {len(self.blast)}.")
 
         self.blast = self.blast.sort_values(
             ["chr1", "chr2", "loc1", "loc2"]

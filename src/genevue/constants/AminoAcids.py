@@ -1,4 +1,6 @@
 from typing import Literal
+from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
 
 
 class AACmap:
@@ -58,9 +60,6 @@ class AACmap:
         return self.palette.get(amino_acid, "F0F0F0")
 
 
-from typing import Literal
-
-
 BLOSUM62 = {
     "A": 0.078,
     "C": 0.024,
@@ -83,3 +82,56 @@ BLOSUM62 = {
     "W": 0.014,
     "Y": 0.034,
 }
+
+MOLECULAR_FORMULA_AMINOACID = {
+    "A": {"C": 3, "H": 7, "N": 1, "O": 2, "S": 0},
+    "C": {"C": 3, "H": 7, "N": 1, "O": 2, "S": 1},
+    "D": {"C": 4, "H": 7, "N": 1, "O": 4, "S": 0},
+    "E": {"C": 5, "H": 9, "N": 1, "O": 4, "S": 0},
+    "F": {"C": 9, "H": 11, "N": 1, "O": 2, "S": 0},
+    "G": {"C": 2, "H": 5, "N": 1, "O": 2, "S": 0},
+    "H": {"C": 6, "H": 9, "N": 3, "O": 2, "S": 0},
+    "I": {"C": 6, "H": 13, "N": 1, "O": 2, "S": 0},
+    "K": {"C": 6, "H": 14, "N": 2, "O": 2, "S": 0},
+    "L": {"C": 6, "H": 13, "N": 1, "O": 2, "S": 0},
+    "M": {"C": 5, "H": 11, "N": 1, "O": 2, "S": 1},
+    "N": {"C": 4, "H": 8, "N": 2, "O": 3, "S": 0},
+    "P": {"C": 5, "H": 9, "N": 1, "O": 2, "S": 0},
+    "Q": {"C": 5, "H": 10, "N": 2, "O": 3, "S": 0},
+    "R": {"C": 6, "H": 14, "N": 4, "O": 2, "S": 0},
+    "S": {"C": 3, "H": 7, "N": 1, "O": 3, "S": 0},
+    "T": {"C": 4, "H": 9, "N": 1, "O": 3, "S": 0},
+    "V": {"C": 5, "H": 11, "N": 1, "O": 2, "S": 0},
+    "W": {"C": 11, "H": 12, "N": 2, "O": 2, "S": 0},
+    "Y": {"C": 9, "H": 11, "N": 1, "O": 3, "S": 0},
+}
+
+
+def molecular_formula_protein(protein_seq: str | Seq | SeqRecord) -> tuple[str, int]:
+    res = {"C": 0, "H": 0, "N": 0, "O": 0, "S": 0}
+    for aa in protein_seq:
+        faa = MOLECULAR_FORMULA_AMINOACID.get(aa.upper())
+        res = {
+            "C": res["C"] + faa["C"],
+            "H": res["H"] + faa["H"],
+            "N": res["N"] + faa["N"],
+            "O": res["O"] + faa["O"],
+            "S": res["S"] + faa["S"],
+        }
+    # minus mass of H2O
+    res["H"] = res["H"] - (len(protein_seq) - 1) * 2
+    res["O"] = res["O"] - (len(protein_seq) - 1)
+
+    res_ls, total_atoms = [], 0
+
+    for element in res:
+        if res[element] == 0:
+            res_ls.append(f"")
+        elif res[element] == 1:
+            res_ls.append(f"{element}")
+            total_atoms += 1
+        else:
+            res_ls.append(f"{element}{res[element]}")
+            total_atoms += res[element]
+
+    return "".join(res_ls), total_atoms
