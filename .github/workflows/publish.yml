@@ -35,4 +35,4 @@ jobs:
           path: dist/
 
       - name: Publish
-        run: uv publish --tokens ${{ secrets.PYPI_API_TOKEN }}
+        run: uv publish --token ${{ secrets.PYPI_API_TOKEN }}
