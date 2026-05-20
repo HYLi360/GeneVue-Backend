@@ -2,6 +2,7 @@ from typing import Callable
 
 import typer
 
+from genevue.Remote import app_remote
 from genevue.QC import app_qc
 from genevue.sequences import app_sequence
 from genevue.Tools.completion import install_completion, uninstall_completion
@@ -70,7 +71,6 @@ def _build_app(_: Callable, configure: Configure) -> typer.Typer:
 
     app.add_typer(app_sequence, name="sequence")
 
-    app_remote = typer.Typer(help=_("Some useful remote or download tools."))
     app.add_typer(app_remote, name="remote")
 
     app_config = _build_config_commands(_, configure)

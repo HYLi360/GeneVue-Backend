@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from genevue import console, setup_rich_logger
 from rich.progress import Progress
 
-logger = setup_rich_logger(__name__)
+logger = setup_rich_logger(__name__, console)
 
 
 @dataclass
