@@ -10,8 +10,8 @@ from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
 
 from genevue import console
-from genevue.external.PAML import YN00, ConfigCODEML, CODEML
-from genevue.external.frontend import muscle5, mafft
+from genevue.External.PAML import YN00, ConfigCODEML, CODEML
+from genevue.External.frontend import muscle5, mafft
 
 
 # ----------------------------------------------------------------------------------------------------

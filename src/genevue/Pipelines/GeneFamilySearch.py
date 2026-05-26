@@ -1,12 +1,10 @@
 from pathlib import Path
 from typing import List
 
-import Bio.SeqIO
-
-from genevue.external.Blaster import BLASTp, MAKEDB
-from genevue.external.HMMER3 import HMMSEARCH
+from genevue.External.Blaster import BLASTp, MAKEDB
+from genevue.External.HMMER3.HMMSearch import HMMSearch
 from genevue.Pipelines import Pipeline
-from genevue.utils.parse import records_filter
+from genevue.Sequences.FASTA import FASTA
 
 Pipeline_GeneFamilySearch = Pipeline()
 
@@ -15,14 +13,16 @@ Pipeline_GeneFamilySearch = Pipeline()
 def _hmmsearch(
     phmm_probe_path: str, pep_path: str, hmm_res_path: str, hmm_max_evalue: float
 ):
-    hmmsearch_instance = HMMSEARCH(phmm_probe_path, pep_path, hmm_res_path)
+    hmmsearch_instance = HMMSearch(
+        Path(hmm_res_path), Path(phmm_probe_path), Path(pep_path)
+    )
     hmmsearch_instance.run()
     return hmmsearch_instance.result_entries_filter(hmm_max_evalue)
 
 
 @Pipeline_GeneFamilySearch.node(node_name="MakeBLASTDB")
 def _makeblastdb(pep_path: str, blastp_pdb_path: str):
-    makedb_instance = MAKEDB("DIAMOND", pep_path, blastp_pdb_path)
+    makedb_instance = MAKEDB("diamond", Path(pep_path), Path(blastp_pdb_path))
     makedb_instance.run()
 
 
@@ -54,9 +54,10 @@ def _extract(
     blastp_entries: List[str],
     record_output_path: str,
 ):
-    cross = set(hmmsearch_entries) & set(blastp_entries)
-    with open(Path(record_output_path).resolve(), "w+") as f:
-        Bio.SeqIO.write(
-            records_filter(Path(pep_path).resolve(), list(cross)).values(), f, "fasta"
-        )
-    return list(records_filter(Path(pep_path).resolve(), list(cross)).values())
+    cross_set = set(hmmsearch_entries) & set(blastp_entries)
+    with open("cross.txt", "w") as f:
+        for cross in cross_set:
+            f.write(f"{cross}\n")
+
+    pep_fasta = FASTA(Path(pep_path))
+    pep_fasta.filter(Path("cross.txt"), "plain", Path(record_output_path))

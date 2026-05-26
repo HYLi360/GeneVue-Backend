@@ -6,9 +6,16 @@ import shlex
 from multiprocessing import cpu_count
 from dataclasses import dataclass
 
+from genevue.configure import Configure
+from genevue import setup_rich_logger, console
 from genevue.utils.parse import blast6reader
+from genevue.External.CMDBuilder import CMDBuilder
 
 CPU_COUNT = cpu_count()
+
+logger = setup_rich_logger(__name__, console)
+
+configure = Configure()
 
 
 @dataclass(
@@ -17,41 +24,44 @@ CPU_COUNT = cpu_count()
 class MAKEDB:
     def __init__(
         self,
-        method: Literal["NCBI BLAST+", "DIAMOND"],
-        dbseqs_path: str | Path,
-        db_path: str | Path,
+        method: Literal["makeblastdb", "diamond"],
+        dbseqs_path: Path,
+        db_path: Path,
+        verbose: bool = False,
+        threads: int | Literal["max", "single"] = 4,
     ):
-        self.method = method
-        self.dbseqs_path = (
-            Path(dbseqs_path).resolve() if isinstance(dbseqs_path, str) else dbseqs_path
-        )
-        self.db_path = Path(db_path).resolve() if isinstance(db_path, str) else db_path
+        self.program_name = method
+        self.program_path = configure.get_program_path(method)
+        self.dbseqs_path = dbseqs_path
+        self.db_path = db_path
+        self.verbose = verbose
 
-    @property
-    def command(self):
-        match self.method:
-            case "NCBI BLAST+":
+        if isinstance(threads, int):
+            self.threads = threads
+        else:
+            self.threads = {"max": CPU_COUNT, "single": 1}.get(threads)
+
+        self.cmdbuilder = CMDBuilder(self.program_name, self.program_path)
+
+        self.buildcmd()
+
+    def buildcmd(self):
+        match self.program_name:
+            case "makeblastdb":
                 pass
-            case "DIAMOND":
-                return [
-                    "diamond",
-                    "makedb",
-                    "--in",
-                    f"{self.dbseqs_path}",
-                    "--db",
-                    f"{self.db_path}",
-                ]
+            case "diamond":
+                self.cmdbuilder.add_flag("makedb")
+                self.cmdbuilder.add_param("--in", self.dbseqs_path)
+                self.cmdbuilder.add_param("--db", self.db_path)
+                self.cmdbuilder.add_param("--threads", self.threads)
+                self.cmdbuilder.add_flag("--quiet")
+                self.cmdbuilder.add_flag("--verbose", self.verbose)
+                return
         # this branch should not be reached
-        print(f"Not identified MAKEDB method: {self.method}")
-        return []
+        logger.warning(f"Not identified MAKEDB method: {self.program_name}")
 
-    def run(self):
-        print(f"{self.method} BLASTp started.")
-        print(f"cmd: {' '.join(self.command)}")
-        subprocess.run(self.command)
-
-    def res_parser(self):
-        pass
+    def run(self, dry_run: bool = False):
+        self.cmdbuilder.run(dry_run=dry_run)
 
 
 class BLASTp:

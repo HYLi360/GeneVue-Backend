@@ -1,7 +1,9 @@
 ﻿import json
 import os
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Optional
+
+from Bio.SeqUtils.ProtParamData import pa
 
 HOME_PATH = Path(
     os.environ["APPDATA"] if os.name == "nt" else os.path.expanduser("~/.config")
@@ -28,7 +30,18 @@ CONFIG_DEFAULT = {
 
 
 class Configure:
+    _instance = None
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            cls._instance._initialized = False
+        return cls._instance
+
     def __init__(self):
+        if self._initialized:
+            return
+        self._initialized = True
         self.config_path: Path = CONFIG_PATH
         if not CONFIG_PATH.exists():
             print("Configure file not found.")
@@ -52,8 +65,14 @@ class Configure:
     def set_apikey(self, provider: str, new_api_key: str) -> None:
         self.config["API_KEY"][provider] = new_api_key
 
-    def get_apikey(self, provider: Literal["NCBI"]) -> None:
-        return self.config["API_KEY"][provider]
+    def get_apikey(self, provider: Literal["NCBI"]) -> Optional[str]:
+        return self.config["API_KEY"].get(provider, None)
+
+    def set_program_path(self, program_name: str, program_path: str):
+        self.config["PATH"][program_name] = program_path
+
+    def get_program_path(self, program_name: str) -> Path:
+        return Path(self.config["PATH"].get(program_name, program_name))
 
     @property
     def email(self) -> str:

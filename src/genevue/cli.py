@@ -4,7 +4,7 @@ import typer
 
 from genevue.Remote import app_remote
 from genevue.QC import app_qc
-from genevue.sequences import app_sequence
+from genevue.Sequences import app_sequence
 from genevue.Tools.completion import install_completion, uninstall_completion
 from genevue.configure import Configure
 

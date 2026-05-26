@@ -4,7 +4,7 @@ from collections import defaultdict
 
 from genevue import console
 from genevue import setup_rich_logger
-from genevue.external.HMMER3 import HMMSEARCH
+from genevue.External.HMMER3.HMMSearch import HMMSearch
 from genevue.utils import deduplicate
 
 logger = setup_rich_logger(__name__, console)
@@ -135,7 +135,7 @@ class FASTA:
         pass
 
     def _parse_hmmsearch_noargs(self, target_path: Path):
-        hmmsearch_inst = HMMSEARCH(res_path=target_path)
+        hmmsearch_inst = HMMSearch(res_path=target_path)
         hmmsearch_inst.parse_result()
 
         self.target_ls = hmmsearch_inst.result_entries_filter(max_evalue=0.01)

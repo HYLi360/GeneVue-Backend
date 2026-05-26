@@ -11,8 +11,6 @@ from genevue import (
 )
 from genevue.utils.parse import species_italic_name
 
-Entrez.email = "lihuanyu2003@gmail.com"
-
 
 class XMLParser:
     pass

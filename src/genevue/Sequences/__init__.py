@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Literal, List, Optional
-from genevue.sequences.FASTA import FASTA
-from genevue.sequences.combine_and_split import simple_combine
+from genevue.Sequences.FASTA import FASTA
+from genevue.Sequences.combine_and_split import simple_combine
 
 import typer
 

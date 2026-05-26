@@ -3,16 +3,21 @@
 """ """
 
 import re
-import subprocess
 from pathlib import Path
 from typing import Optional
 
 import pandas as pd
 
+from genevue import setup_rich_logger, console
+from genevue.External.CMDBuilder import CMDBuilder
 from genevue.Pipelines import ProcessNode
+from genevue.configure import Configure
+
+logger = setup_rich_logger(__name__, console)
+configure = Configure()
 
 
-class HMMSEARCH(ProcessNode):
+class HMMSearch(ProcessNode):
     def __init__(
         self,
         res_path: Path,
@@ -22,22 +27,19 @@ class HMMSEARCH(ProcessNode):
         self.phmm_probe_path = phmm_probe_path
         self.seqs_path = seqs_path
         self.res_path = res_path
+        self.command = CMDBuilder("hmmsearch", configure.get_program_path("hmmsearch"))
         self.result_info = None
         self.result_table = None
         self.result_entries = None
 
-    @property
-    def command(self):
-        return [
-            f"hmmsearch",
-            "-o",
-            f"{self.res_path}",
-            f"{self.phmm_probe_path}",
-            f"{self.seqs_path}",
-        ]
+        self.buildcmd()
+        self.run()
+
+    def buildcmd(self):
+        self.command.add_param("-o", self.res_path)
 
     def run(self):
-        subprocess.run(self.command)
+        self.command.run(self.phmm_probe_path, self.seqs_path)
         self.parse_result()
 
     def parse_result(self):

@@ -51,32 +51,35 @@ def _clean_empty_log_file():
             pass
 
 
-def _get_log_file_handler(log_dir: Path, loglevel: int) -> logging.FileHandler:
+def _get_log_file_handler(log_dir: Path, loglevel: int | str) -> logging.FileHandler:
     global _log_file_path
-    if _log_file_path is not None:
-        # reuse
-        file_handler = logging.FileHandler(_log_file_path)
-        file_handler.setLevel(loglevel)
-        return file_handler
-
-    _log_file_path = log_dir / f"genevue_{time.strftime("%Y%m%d%H%M%S")}.log"
-    atexit.register(_clean_empty_log_file)
+    if _log_file_path is None:
+        _log_file_path = log_dir / f"genevue_{time.strftime("%Y%m%d%H%M%S")}.log"
+        atexit.register(_clean_empty_log_file)
 
     file_handler = logging.FileHandler(_log_file_path)
     file_handler.setLevel(loglevel)
+    file_handler.setFormatter(
+        logging.Formatter(
+            fmt="%(asctime)s %(name)s %(levelname)s %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+    )
     return file_handler
 
 
 def setup_rich_logger(
     name: str,
     rich_console: Console,
-    disp_loglevel: int = 0,
-    file_loglevel: int = 0,
+    total_loglevel: int | str = "DEBUG",
+    disp_loglevel: int | str = "INFO",
+    file_loglevel: int | str = "DEBUG",
     propagate: bool = False,
     *,
     log_dir: Path = Path(".").resolve(),
 ) -> logging.Logger:
     logger = logging.getLogger(name)
+    logger.setLevel(total_loglevel)
 
     if getattr(logger, "_genevue_configured", False):
         return logger
@@ -86,10 +89,10 @@ def setup_rich_logger(
         show_time=True,
         rich_tracebacks=True,
         markup=True,
-        level=disp_loglevel,
         show_path=False,
         tracebacks_show_locals=True,
     )
+    rich_handler.setLevel(disp_loglevel)
 
     file_handler = _get_log_file_handler(log_dir, file_loglevel)
 

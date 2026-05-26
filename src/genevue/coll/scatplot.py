@@ -10,7 +10,7 @@ from typing import Literal, Optional
 
 from matplotlib import pyplot as plt
 
-from genevue.sequences import FASTA
+from genevue.Sequences import FASTA
 from genevue.utils.parse import bed_reader
 
 

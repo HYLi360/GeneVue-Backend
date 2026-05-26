@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import json
 import os
@@ -11,7 +12,7 @@ from typing import List, Literal, Optional
 import requests
 
 from genevue import setup_rich_logger, console
-from genevue.utils.network import DownloadManager
+from genevue.utils.network import AsyncDownloadManager
 
 logger = setup_rich_logger(__name__, console)
 
@@ -43,6 +44,7 @@ class Datasets4Genome:
         apikey: Optional[str] = None,
         generate_symlinks: bool = False,
         force_make_new_dir: bool = False,
+        max_concurrent: int = 3,
     ):
         self.type = "genome"
         logger.info(f"Downloading {self.type} by NCBI Datasets API.")
@@ -106,24 +108,37 @@ class Datasets4Genome:
 
         self.apikey = apikey
         if self.apikey is None:
-            logger.warning("You didn't provide NCBI Datasets API key!")
             logger.warning(
+                "You didn't provide NCBI Datasets API key!\n"
                 "This isn't a big deal, it only just reduce your maximum RPS from 10 to 5. "
-                "However, we still recommend that you apply for an API key."
-            )
-            logger.warning(
+                "However, we still recommend that you apply for an API key.\n"
                 "Visit https://www.ncbi.nlm.nih.gov/datasets/docs/v2/api/api-keys/ for more details."
             )
+            if max_concurrent < 0 or max_concurrent > 5:
+                logger.warning(
+                    "Illegal value for max_concurrent argument! Set to 3 automatically."
+                )
+                self.max_concurrent = 3
+            else:
+                self.max_concurrent = max_concurrent
+        else:
+            if max_concurrent < 0 or max_concurrent > 10:
+                logger.warning(
+                    "Illegal value for max_concurrent argument! Set to 3 automatically."
+                )
+                self.max_concurrent = 3
+            else:
+                self.max_concurrent = max_concurrent
 
         if chunk_size > 100:
-            raise Exception
+            logger.warning("Too much chunk size! Automately set to 20.")
         self.chunk_size = chunk_size
 
         self.generate_symlinks = generate_symlinks
 
-    @property
-    def request_download_url(self):
-        accessions: str = "%2C".join(self.accession_list)
+    # URL builders
+    def build_download_url(self, accession_list: List[str]) -> str:
+        accessions: str = "%2C".join(accession_list)
         chromosomes: str = "&".join(
             [f"chromosomes={chromosome}" for chromosome in self.chromosome_list]
         )
@@ -141,12 +156,10 @@ class Datasets4Genome:
         params = "&".join(
             [item for item in [chromosomes, includes, hydrated, filename] if item != ""]
         )
-
         return f"{DATASET_API_BASE_URL}/{self.type}/accession/{accessions}/download?{params}"
 
-    @property
-    def request_check_url(self):
-        accessions: str = "%2C".join(self.accession_list)
+    def build_check_url(self, accession_list: List[str]) -> str:
+        accessions: str = "%2C".join(accession_list)
         return f"{DATASET_API_BASE_URL}/{self.type}/accession/{accessions}/check"
 
     @property
@@ -154,7 +167,6 @@ class Datasets4Genome:
         header = {"accept": "application/json"}
         if self.apikey is not None:
             header["api_key"] = self.apikey
-
         return header
 
     @staticmethod
@@ -162,46 +174,46 @@ class Datasets4Genome:
         for i in range(0, len(data), chunk_size):
             yield data[i : i + chunk_size]
 
-    def _check_invalid_duplicated_accessions(self) -> None:
-        logger.info("Start Check.")
-        logger.info(f"Input accession: {len(self.accession_list)}")
-        need_update_accession_list_label = False
+    # Validation
+    def _check_invalid_duplicated_accessions(
+        self, accession_list: List[str]
+    ) -> List[str]:
+        logger.info("Start check.")
+        logger.info(f"Input accession: {len(accession_list)}")
 
-        # Check Duplicated
-        new_accession_list = list(dict.fromkeys(self.accession_list))
-        logger.info(
-            f"Accessions count after remove duplicated: {len(new_accession_list)}"
-        )
-        if len(new_accession_list) != len(self.accession_list):
+        new_list = list(dict.fromkeys(accession_list))
+        logger.info(f"Accessions count after remove duplicated: {len(new_list)}")
+        if len(new_list) != len(accession_list):
             logger.warning("Duplicate accession detected.")
-            need_update_accession_list_label = True
 
-        # Check Invalid
-        logger.info(f"Try opening the url {self.request_check_url}")
+        logger.info("Validating accessions via NCBI check API...")
         valid_accessions, invalid_accessions = [], []
 
-        for chunk in self._chunk_iter(new_accession_list, 100):
-            self.accession_list = chunk
-            res = requests.get(
-                self.request_check_url, headers=self.request_header
-            ).json()
+        for chunk in self._chunk_iter(new_list, 100):
+            url = self.build_check_url(chunk)
+            logger.info(f"Try opening the url {url}")
+            res = requests.get(url, headers=self.request_header).json()
             valid_accessions.extend(res.get("valid_assemblies", []))
             invalid_accessions.extend(res.get("invalid_assemblies", []))
 
-        if len(valid_accessions) != len(new_accession_list):
+        if len(valid_accessions) != len(new_list):
             logger.warning("Invalid accession detected.")
             logger.warning(f"Invalid accessions: {invalid_accessions}")
-            need_update_accession_list_label = True
         else:
             logger.info("Accessions check passed.")
+        return valid_accessions
 
-        if need_update_accession_list_label:
-            logger.warning("Accession list updated.")
-        self.accession_list = valid_accessions
+    def _validate_and_chunk(self, accessions: List[str]) -> List[List[str]]:
+        valid = self._check_invalid_duplicated_accessions(accessions)
+        if not valid:
+            return []
+        return list(self._chunk_iter(valid, self.chunk_size))
 
-    def download(self):
-        # Download
-        accession_list_original = self.accession_list
+    # Post-download processing
+    def _process_downloaded_chunk(
+        self, order: int, dataset_catalog_list: list, md5dict: dict
+    ):
+        logger.info(f"Processing batch {order+1}.")
 
         md5file_path = self.foldpath / "md5sum.txt"
         asm_data_report_path = (
@@ -210,148 +222,75 @@ class Datasets4Genome:
         dataset_catalog_path = (
             self.foldpath / "ncbi_dataset" / "data" / "dataset_catalog.json"
         )
-        dataset_catalog_list = []
-        md5dict = defaultdict(str)
-        for order, chunk in enumerate(
-            self._chunk_iter(accession_list_original, self.chunk_size)
-        ):
-            logger.info(f"Start download batch {order+1}.")
-            self.accession_list = chunk
 
-            # check
-            self._check_invalid_duplicated_accessions()
+        # extract
+        with zipfile.ZipFile(
+            self.foldpath / f"{self.zip_name}.{order+1}.zip", "r"
+        ) as zipf:
+            logger.info("Extracting.")
+            zipf.extractall(path=self.foldpath)
 
-            # download
-            downloader = DownloadManager(
-                self.request_download_url,
-                self.request_header,
-                self.foldpath
-                / f"{self.zip_name}.{order+1}.zip",  # avoid it to be covered
-            )
-            downloader.download()
-
-            # extract.
-            with zipfile.ZipFile(
-                self.foldpath / f"{self.zip_name}.{order+1}.zip", "r"
-            ) as zipf:
-                logger.info("Extracting.")
-                zipf.extractall(path=self.foldpath)
-
-            # read md5.
-            with open(md5file_path) as md5f:
-                for line in md5f:
-                    md5sum, filepath = line.strip().split()
-                    if filepath == "ncbi_dataset/data/assembly_data_report.jsonl":
-                        md5dict[
-                            f"ncbi_dataset/data/assembly_data_report.{order+1}.jsonl"
-                        ] = md5sum
-                    elif filepath == "ncbi_dataset/data/dataset_catalog.json":
-                        md5dict[f"ncbi_dataset/data/dataset_catalog.{order+1}.json"] = (
-                            md5sum
-                        )
-                    else:
-                        md5dict[filepath] = md5sum
-
-            # concat jsonl.
-            with (
-                open(asm_data_report_path) as asm_original,
-                open(
-                    self.foldpath
-                    / "ncbi_dataset"
-                    / "data"
-                    / "assembly_data_report_concat.jsonl",
-                    "a",
-                ) as asm_final,
-            ):
-                for line in asm_original:
-                    asm_final.write(line)
-
-            # read the dataset catalog list.
-            # original format:
-            # position 0: assembly_data_report.jsonl (no needed)
-            # position 1: accession X
-            # position 2: accession Y
-            # ...
-
-            # {
-            # "apiVersion": "V2",
-            # "assemblies": [
-            # {
-            #   "files": [
-            #     {
-            #       "filePath": "assembly_data_report.jsonl",
-            #       "fileType": "DATA_REPORT",
-            #       "uncompressedLengthBytes": "54774"
-            #     }
-            #   ]
-            # },{
-            #   "accession": "GCA_028411795.1",
-            #   "files": [
-            #     {
-            #       "filePath": "GCA_028411795.1/genomic.gtf",
-            #       "fileType": "GTF",
-            #       "uncompressedLengthBytes": "116499833"
-            #     },
-            #     {
-            #       "filePath": "GCA_028411795.1/protein.faa",
-            #       "fileType": "PROTEIN_FASTA",
-            #       "uncompressedLengthBytes": "13042297"
-            #     }
-            #   ]
-            # }, ...
-            # ]}
-            dataset_catalog_list.extend(
-                json.load(
-                    open(
-                        self.foldpath / "ncbi_dataset" / "data" / "dataset_catalog.json"
+        # read md5
+        with open(md5file_path) as md5f:
+            for line in md5f:
+                md5sum, filepath = line.strip().split()
+                if filepath == "ncbi_dataset/data/assembly_data_report.jsonl":
+                    md5dict[
+                        f"ncbi_dataset/data/assembly_data_report.{order+1}.jsonl"
+                    ] = md5sum
+                elif filepath == "ncbi_dataset/data/dataset_catalog.json":
+                    md5dict[f"ncbi_dataset/data/dataset_catalog.{order+1}.json"] = (
+                        md5sum
                     )
-                )["assemblies"][1:]
-            )
+                else:
+                    md5dict[filepath] = md5sum
 
-            # rename.
-            os.rename(md5file_path, self.foldpath / f"md5sum.{order+1}.txt")
-            os.rename(
-                asm_data_report_path,
+        # concat jsonl
+        with (
+            open(asm_data_report_path) as asm_original,
+            open(
                 self.foldpath
                 / "ncbi_dataset"
                 / "data"
-                / f"assembly_data_report.{order+1}.jsonl",
-            )
-            os.rename(
-                dataset_catalog_path,
-                self.foldpath
-                / "ncbi_dataset"
-                / "data"
-                / f"dataset_catalog.{order+1}.json",
-            )
+                / "assembly_data_report_concat.jsonl",
+                "a",
+            ) as asm_final,
+        ):
+            for line in asm_original:
+                asm_final.write(line)
 
-        # write back the dataset_catalog.json and md5 dict
-        # just need some rebuild to make it much easier to read...
+        # read the dataset catalog list
+        dataset_catalog_list.extend(
+            json.load(open(dataset_catalog_path))["assemblies"][1:]
+        )
 
-        # Unified the file types.
-        # possible file types:
-        # - "CDS_NUCLEOTIDE_FASTA" -> cds
-        # - "GENBANK_FLAT_FILE" -> gbff
-        # - "GENOMIC_NUCLEOTIDE_FASTA" -> genome_seq
-        # - "GFF3" -> "gff3"
-        # - "GTF" -> "gtf"
-        # - "PROTEIN_FASTA" -> pep
-        # - "RNA_NUCLEOTIDE_FASTA" -> rna
-        # - "SEQUENCE_REPORT" -> seq_report
+        # rename
+        os.rename(md5file_path, self.foldpath / f"md5sum.{order+1}.txt")
+        os.rename(
+            asm_data_report_path,
+            self.foldpath
+            / "ncbi_dataset"
+            / "data"
+            / f"assembly_data_report.{order+1}.jsonl",
+        )
+        os.rename(
+            dataset_catalog_path,
+            self.foldpath / "ncbi_dataset" / "data" / f"dataset_catalog.{order+1}.json",
+        )
+
+    # finalization
+    def _finalize_download(self, dataset_catalog_list: list, md5dict: dict):
         type_switch_dict_type = {
             "CDS_NUCLEOTIDE_FASTA": "CDS_FASTA",
             "GENBANK_FLAT_FILE": "GENOME_GBFF",
             "GENOMIC_NUCLEOTIDE_FASTA": "GENOME_FASTA",
-            "GFF3": "GENOME_GTF",
-            "GTF": "GENOME_GFF",
+            "GFF3": "GENOME_GFF",
+            "GTF": "GENOME_GTF",
             "PROTEIN_FASTA": "PROT_FASTA",
             "RNA_NUCLEOTIDE_FASTA": "RNA_FASTA",
             "SEQUENCE_REPORT": "SEQUENCE_REPORT",
         }
 
-        # Flatten the path index
-        # to
-        # {accession: {file_type: file_path}}
         dataset_catalog_simplified = {}
         for accession_block in dataset_catalog_list:
             dataset_catalog_simplified[accession_block["accession"]] = {}
@@ -365,19 +304,17 @@ class Datasets4Genome:
                 self.foldpath
                 / "ncbi_dataset"
                 / "data"
-                / f"dataset_catalog_simplified.json",
+                / "dataset_catalog_simplified.json",
                 "w",
             ),
         )
-        # for md5...
+
+        # write back the md5 dict
         with open(self.foldpath / "md5sum.txt", "w") as md5f:
             for path in md5dict:
                 md5f.write(f"{path} {md5dict[path]}\n")
 
-        # restore self.accession_list
-        self.accession_list = accession_list_original
-
-        # check md5 and generate symlinks (if needed.)
+        # check md5 and generate symlinks (if needed)
         for accession in dataset_catalog_simplified:
             files_dict = dataset_catalog_simplified[accession]
             for include in self.include_list:
@@ -389,7 +326,6 @@ class Datasets4Genome:
                     logger.warning(f"Accession {accession} has no file of {include}")
                     continue
 
-                # check md5.
                 with open(sub_file_path, "rb") as f:
                     logger.info(f"Checking {sub_file_path}")
                     md5sum_hex = hashlib.file_digest(f, "md5").hexdigest()
@@ -398,14 +334,68 @@ class Datasets4Genome:
                         != md5sum_hex
                     ):
                         logger.warning(
-                            f"Wrong md5 sum of {sub_file_path}! except {md5dict[files_dict[include]]}, get {md5sum_hex}"
+                            f"Wrong md5 sum of {sub_file_path}! "
+                            f"except {md5dict[files_dict[include]]}, get {md5sum_hex}"
                         )
                         continue
 
-                # create symlink.
                 if self.generate_symlinks:
                     logger.info(f"Set symlink for {sub_file_path}")
                     target = self.foldpath / "symlinks" / include / accession
                     target.parent.parent.mkdir(exist_ok=True)
                     target.parent.mkdir(exist_ok=True)
                     os.symlink(src=sub_file_path, dst=target)
+
+    # Parallel download orchestration
+    async def _download_chunks_parallel(
+        self, chunks: List[List[str]], dataset_catalog_list: list, md5dict: dict
+    ):
+        semaphore = asyncio.Semaphore(self.max_concurrent)
+
+        async def download_one(order: int, chunk: List[str]):
+            url = self.build_download_url(chunk)
+            zip_path = self.foldpath / f"{self.zip_name}.{order+1}.zip"
+            logger.info(f"Start download batch {order+1}.")
+            async with semaphore:
+                dm = AsyncDownloadManager(url, self.request_header, zip_path)
+                await dm.download()
+
+        tasks = [download_one(i, c) for i, c in enumerate(chunks)]
+        await asyncio.gather(*tasks)
+
+        for order in range(len(chunks)):
+            self._process_downloaded_chunk(order, dataset_catalog_list, md5dict)
+
+    # Public API
+    def download(self):
+        accession_list_original = self.accession_list
+
+        chunks = self._validate_and_chunk(accession_list_original)
+        if not chunks:
+            logger.error("No valid accessions to download.")
+            return
+
+        dataset_catalog_list = []
+        md5dict = defaultdict(str)
+
+        if len(chunks) == 1:
+            url = self.build_download_url(chunks[0])
+            logger.info("Start download batch 1.")
+            dm = AsyncDownloadManager(
+                url,
+                self.request_header,
+                self.foldpath / f"{self.zip_name}.1.zip",
+            )
+            asyncio.run(dm.download())
+            self._process_downloaded_chunk(0, dataset_catalog_list, md5dict)
+        else:
+            logger.info(
+                f"Downloading {len(chunks)} batches in parallel "
+                f"(max {self.max_concurrent} concurrent)."
+            )
+            asyncio.run(
+                self._download_chunks_parallel(chunks, dataset_catalog_list, md5dict)
+            )
+
+        self.accession_list = accession_list_original
+        self._finalize_download(dataset_catalog_list, md5dict)
