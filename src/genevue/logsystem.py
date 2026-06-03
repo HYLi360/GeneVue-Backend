@@ -40,6 +40,9 @@ def _setup_busco_bridge(rich_console: Console):
 
 
 def _clean_empty_log_file():
+    """
+    Clean empty log file. ...may useless?
+    """
     global _log_file_path
     if _log_file_path is None:
         return
@@ -48,6 +51,8 @@ def _clean_empty_log_file():
             if _log_file_path.exists() and _log_file_path.stat().st_size == 0:
                 os.remove(_log_file_path)
         except OSError:
+            # not found log file
+            # expective result
             pass
 
 
@@ -57,7 +62,8 @@ def _get_log_file_handler(log_dir: Path, loglevel: int | str) -> logging.FileHan
         _log_file_path = log_dir / f"genevue_{time.strftime("%Y%m%d%H%M%S")}.log"
         atexit.register(_clean_empty_log_file)
 
-    file_handler = logging.FileHandler(_log_file_path)
+    # add delay=True make file handler activated only when needed
+    file_handler = logging.FileHandler(_log_file_path, delay=True)
     file_handler.setLevel(loglevel)
     file_handler.setFormatter(
         logging.Formatter(

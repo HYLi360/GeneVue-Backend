@@ -1,15 +1,22 @@
-from typing import Optional
+from typing import Optional, Annotated
 
-from Bio import Entrez
+import typer
+from Bio import Entrez as BioEntrez
 from rich.text import Text
 
 from genevue import (
+    setup_rich_logger,
     console,
     AllFieldsEmptyError,
     NothingFoundError,
     ResultIsNotSpeciesError,
 )
+from genevue.configure import Configure
 from genevue.utils.parse import species_italic_name
+
+logger = setup_rich_logger(__name__, console)
+
+app_entrez = typer.Typer()
 
 
 class XMLParser:
@@ -50,43 +57,47 @@ class GeneVueEUtilsTaxonomy:
 
         del subterm_content, subterm_flag
 
+        configure = Configure()
+
+        BioEntrez.email = configure.email
+
         if not subterm_list:
-            console.exception(
+            logger.exception(
                 AllFieldsEmptyError(["species_id", "species_name"]),
             )
 
-        console.info(f"Searching by Biopython Entrez Module.")
+        logger.info(f"Searching by Biopython Entrez Module.")
 
         # Get ID
-        stream = Entrez.esearch(db="taxonomy", term=" AND ".join(subterm_list))
-        record = Entrez.read(stream)
+        stream = BioEntrez.esearch(db="taxonomy", term=" AND ".join(subterm_list))
+        record = BioEntrez.read(stream)
         if not record["IdList"]:
             # try to get the true spell
-            stream = Entrez.espell(term=self.species_name)
-            correct_spell = Entrez.read(stream)["CorrectedQuery"]
+            stream = BioEntrez.espell(term=self.species_name)
+            correct_spell = BioEntrez.read(stream)["CorrectedQuery"]
             if not self.species_name or not correct_spell:
-                console.exception(
+                logger.exception(
                     NothingFoundError(
                         "I tried searching but found nothing. Maybe you should check your input?"
                     )
                 )
             else:
-                console.exception(
+                logger.exception(
                     NothingFoundError(
                         "I tried searching but found nothing. Maybe you spelled wrong, "
                         f"mixed [{self.species_name}] with [{correct_spell}]?"
                     )
                 )
 
-        stream = Entrez.efetch(db="taxonomy", id=record["IdList"][0])
-        record = Entrez.read(stream)[0]
+        stream = BioEntrez.efetch(db="taxonomy", id=record["IdList"][0])
+        record = BioEntrez.read(stream)[0]
         self.species_id = record["TaxId"]
         self.species_name = record["ScientificName"]
         self.genetic_code = record["GeneticCode"]["GCId"]
         self.genetic_code_mt = record["MitoGeneticCode"]["MGCId"]
 
         if record["Rank"] != "species":
-            console.exception(ResultIsNotSpeciesError(record["ScientificName"]))
+            logger.exception(ResultIsNotSpeciesError(record["ScientificName"]))
 
         for rank in record["LineageEx"]:
             match rank["Rank"]:
@@ -107,3 +118,12 @@ class GeneVueEUtilsTaxonomy:
         console.print(Text("Genus: "), Text(self.lineage["genus"], style="italic"))
         console.print(f"Nucl-Genetic Code Type: {self.genetic_code}")
         console.print(f"MT - Genetic Code Type: {self.genetic_code_mt}")
+
+
+@app_entrez.command(name="species-lineage")
+def cmd_species_lineage(
+    species_name: Annotated[str, typer.Argument()] = "",
+):
+    t = GeneVueEUtilsTaxonomy(species_name=species_name)
+    t.get()
+    t.show()

@@ -22,7 +22,11 @@ def _hmmsearch(
 
 @Pipeline_GeneFamilySearch.node(node_name="MakeBLASTDB")
 def _makeblastdb(pep_path: str, blastp_pdb_path: str):
-    makedb_instance = MAKEDB("diamond", Path(pep_path), Path(blastp_pdb_path))
+    makedb_instance = MAKEDB(
+        "diamond",
+        Path(pep_path),
+        Path(blastp_pdb_path),
+    )
     makedb_instance.run()
 
 

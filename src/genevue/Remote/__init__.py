@@ -2,16 +2,19 @@
 #  Free software distributed under the terms of the GNU GPL-3.0 license,
 #  and comes with ABSOLUTELY NO WARRANTY.
 #  See at <https://www.gnu.org/licenses/gpl-3.0.en.html>
+from pathlib import Path
+from typing import Optional
 
 import typer
 from genevue.configure import Configure
 from genevue.Remote.NCBI_DATASETS_API import Includes, Datasets4Genome
+from genevue.Remote.Entrez import app_entrez
 
 app_remote = typer.Typer()
 
 
 @app_remote.command()
-def download_datasets(
+def datasets_download(
     accessions_path: str,
     chunk_size: int = typer.Option(
         20, "-c", "--chunk-size", help="Accessions per download batch (max 100)."
@@ -37,3 +40,15 @@ def download_datasets(
         apikey=apikey,
         generate_symlinks=makesymlink,
     ).download()
+
+
+@app_remote.command()
+def datasets_rebuild_symlink(datasets_path: Optional[str] = None):
+    if datasets_path is None:
+        d4g = Datasets4Genome()
+    else:
+        d4g = Datasets4Genome(target_dir=Path(datasets_path))
+    d4g.rebuild_symlinks()
+
+
+app_remote.add_typer(app_entrez)

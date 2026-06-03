@@ -1,10 +1,11 @@
-from typing import Callable
+from typing import Callable, Annotated
 
 import typer
 
 from genevue.Remote import app_remote
 from genevue.QC import app_qc
 from genevue.Sequences import app_sequence
+from genevue.Tools import app_tools
 from genevue.Tools.completion import install_completion, uninstall_completion
 from genevue.configure import Configure
 
@@ -38,7 +39,7 @@ def _build_config_commands(_: Callable, configure: Configure):
 
     @app_config.command(help=_("Set contact email."))
     def set_email(
-        email: str = typer.Option(..., help=_("Email address")),
+        email: Annotated[str, typer.Argument(..., help=_("Email address"))],
     ):
         configure.set_email(email)
 
@@ -60,10 +61,6 @@ def _build_app(_: Callable, configure: Configure) -> typer.Typer:
         add_completion=True,
     )
 
-    # attach sub-module
-    app_tools = typer.Typer(help=_("Utility tools"))
-    app.add_typer(app_tools, name="tools")
-
     app.add_typer(app_qc, name="qc")
 
     pipeline = typer.Typer(help=_(" "))
@@ -72,6 +69,8 @@ def _build_app(_: Callable, configure: Configure) -> typer.Typer:
     app.add_typer(app_sequence, name="sequence")
 
     app.add_typer(app_remote, name="remote")
+
+    app.add_typer(app_tools, name="tools")
 
     app_config = _build_config_commands(_, configure)
     app.add_typer(app_config, name="config")

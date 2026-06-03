@@ -12,7 +12,7 @@ from genevue import console, setup_rich_logger
 logger = setup_rich_logger(__name__, console)
 
 # Retry configuration for AsyncDownloadManager
-_RETRY_DELAYS = [1.0, 2.0, 4.0]
+_RETRY_DELAYS = [1.0, 2.0, 4.0, 4.0, 4.0]
 _DEFAULT_CONNECT_TIMEOUT = 30
 _DEFAULT_READ_TIMEOUT = 60
 _DEFAULT_TOTAL_TIMEOUT = 300
@@ -84,12 +84,13 @@ class DownloadManager:
         s = ""
 
         if total_size == 0:
-            for chunk in stream.iter_content(chunk_size=2048):
-                received += f_out.write(chunk)
-                r, s = _pretty_status_display(
-                    received, received / (time.time() - start_time)
-                )
-
+            with console.status("Downloading...") as status:
+                for chunk in stream.iter_content(chunk_size=2048):
+                    received += f_out.write(chunk)
+                    r, s = _pretty_status_display(
+                        received, received / (time.time() - start_time)
+                    )
+                    status.update(f"Received: {r}   Total Speed: {s}")
         else:
             with Progress() as progress:
                 task_download = progress.add_task(
@@ -123,22 +124,20 @@ class AsyncDownloadManager:
     read_timeout: float = _DEFAULT_READ_TIMEOUT
     total_timeout: float = _DEFAULT_TOTAL_TIMEOUT
 
-    async def _stream_to_file(self, response, path: Path) -> Path:
+    @staticmethod
+    async def _stream_to_file(response, path: Path) -> Path:
         received = 0
         start_time = time.time()
-        with console.status("Downloading...") as status:
-            with open(path, "wb") as f:
-                async for chunk in response.content.iter_chunked(8192):
-                    if not chunk:
-                        continue
-                    f.write(chunk)
-                    received += len(chunk)
-                    r, s = _pretty_status_display(
-                        received, received / (time.time() - start_time)
-                    )
-                    status.update(f"Received: {r}   Total Speed: {s}")
-        elapsed = time.time() - start_time
-        logger.info(f"Downloaded {r} in {elapsed:.1f}s to {path}")
+        with open(path, "wb") as f:
+            async for chunk in response.content.iter_chunked(2048):
+                if not chunk:
+                    continue
+                f.write(chunk)
+                received += len(chunk)
+                r, s = _pretty_status_display(
+                    received, received / (time.time() - start_time)
+                )
+        logger.info(f"Downloaded {r} in {time.time() - start_time:.1f}s to {path}")
         return path
 
     async def download(self) -> Path:

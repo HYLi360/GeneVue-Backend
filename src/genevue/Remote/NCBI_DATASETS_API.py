@@ -2,6 +2,7 @@ import asyncio
 import hashlib
 import json
 import os
+import shutil
 import zipfile
 from collections import defaultdict
 from enum import Enum
@@ -19,6 +20,17 @@ logger = setup_rich_logger(__name__, console)
 API_VERSION = "v2"
 DATASET_API_BASE_URL = f"https://api.ncbi.nlm.nih.gov/datasets/{API_VERSION}"
 
+TYPE_SWITCH_DICT = {
+    "CDS_NUCLEOTIDE_FASTA": "CDS_FASTA",
+    "GENBANK_FLAT_FILE": "GENOME_GBFF",
+    "GENOMIC_NUCLEOTIDE_FASTA": "GENOME_FASTA",
+    "GFF3": "GENOME_GFF",
+    "GTF": "GENOME_GTF",
+    "PROTEIN_FASTA": "PROT_FASTA",
+    "RNA_NUCLEOTIDE_FASTA": "RNA_FASTA",
+    "SEQUENCE_REPORT": "SEQUENCE_REPORT",
+}
+
 
 class Includes(Enum):
     genome_seq = "GENOME_FASTA"
@@ -34,7 +46,7 @@ class Includes(Enum):
 class Datasets4Genome:
     def __init__(
         self,
-        accessions: str | List[str],
+        accessions: str | List[str] = "",
         chromosomes: Optional[str | List[str]] = None,
         include: List[Includes] | Literal["DEFAULT"] = "DEFAULT",
         hydrated: bool = True,
@@ -227,7 +239,9 @@ class Datasets4Genome:
         with zipfile.ZipFile(
             self.foldpath / f"{self.zip_name}.{order+1}.zip", "r"
         ) as zipf:
-            logger.info("Extracting.")
+            logger.info(
+                f"Extracting {self.foldpath / f"{self.zip_name}.{order+1}.zip"}"
+            )
             zipf.extractall(path=self.foldpath)
 
         # read md5
@@ -280,24 +294,14 @@ class Datasets4Genome:
 
     # finalization
     def _finalize_download(self, dataset_catalog_list: list, md5dict: dict):
-        type_switch_dict_type = {
-            "CDS_NUCLEOTIDE_FASTA": "CDS_FASTA",
-            "GENBANK_FLAT_FILE": "GENOME_GBFF",
-            "GENOMIC_NUCLEOTIDE_FASTA": "GENOME_FASTA",
-            "GFF3": "GENOME_GFF",
-            "GTF": "GENOME_GTF",
-            "PROTEIN_FASTA": "PROT_FASTA",
-            "RNA_NUCLEOTIDE_FASTA": "RNA_FASTA",
-            "SEQUENCE_REPORT": "SEQUENCE_REPORT",
-        }
-
         dataset_catalog_simplified = {}
         for accession_block in dataset_catalog_list:
             dataset_catalog_simplified[accession_block["accession"]] = {}
             for file in accession_block["files"]:
                 dataset_catalog_simplified[accession_block["accession"]][
-                    type_switch_dict_type[file["fileType"]]
+                    TYPE_SWITCH_DICT[file["fileType"]]
                 ] = file["filePath"]
+
         json.dump(
             dataset_catalog_simplified,
             open(
@@ -346,16 +350,51 @@ class Datasets4Genome:
                     target.parent.mkdir(exist_ok=True)
                     os.symlink(src=sub_file_path, dst=target)
 
+    def rebuild_symlinks(self):
+        """
+        Generate symlink if you regret or path changed.
+        """
+        # try open dataset_catalog_simplified.json
+        if not (self.foldpath / "ncbi_dataset" / "data").exists():
+            logger.error("Cannot found dataset_catalog_simplified")
+        catalog = json.load(
+            open(
+                self.foldpath
+                / "ncbi_dataset"
+                / "data"
+                / "dataset_catalog_simplified.json"
+            )
+        )
+
+        if (self.foldpath / "symlinks").exists():
+            # remove old symlink dir
+            shutil.rmtree(self.foldpath / "symlinks", ignore_errors=True)
+
+        (self.foldpath / "symlinks").mkdir()
+
+        for accession in catalog:
+            for _type in catalog[accession]:
+                source = (
+                    self.foldpath / "ncbi_dataset" / "data" / catalog[accession][_type]
+                )
+                target: Path = self.foldpath / "symlinks" / _type / accession
+                target.parent.mkdir(exist_ok=True)
+                logger.info(f"Set symlink for {target}")
+                os.symlink(src=source, dst=target)
+        logger.info(
+            f"Symlink create completed. You can find these symlinks in {self.foldpath / "symlinks"}"
+        )
+
     # Parallel download orchestration
     async def _download_chunks_parallel(
         self, chunks: List[List[str]], dataset_catalog_list: list, md5dict: dict
     ):
         semaphore = asyncio.Semaphore(self.max_concurrent)
 
-        async def download_one(order: int, chunk: List[str]):
+        async def download_one(_order: int, chunk: List[str]):
             url = self.build_download_url(chunk)
-            zip_path = self.foldpath / f"{self.zip_name}.{order+1}.zip"
-            logger.info(f"Start download batch {order+1}.")
+            zip_path = self.foldpath / f"{self.zip_name}.{_order + 1}.zip"
+            logger.info(f"Start download batch {_order + 1}.")
             async with semaphore:
                 dm = AsyncDownloadManager(url, self.request_header, zip_path)
                 await dm.download()

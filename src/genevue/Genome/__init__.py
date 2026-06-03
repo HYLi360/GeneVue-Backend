@@ -1,25 +1,21 @@
-from genevue import SeqFileNotFoundError, GFF3FileNotFoundError, FormatNotSuitableError
-from genevue import console
-from genevue.utils import header_detector
-
+import mmap
 import re
 import time
-import tempfile
-import mmap
-from functools import singledispatch
-import pandas as pd
-import gzip
-
-from pathlib import Path
-from typing import Iterable, Optional, Literal
 from collections import defaultdict
-from rich.progress import track
-from rich.table import Table
+from pathlib import Path
+from typing import Iterable, Optional
 
+import pandas as pd
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqIO.FastaIO import FastaWriter
 from Bio.SeqRecord import SeqRecord
+from rich.progress import track
+from rich.table import Table
+
+from genevue import SeqFileNotFoundError, GFF3FileNotFoundError, FormatNotSuitableError
+from genevue import console
+from genevue.utils import header_detector
 
 
 class Genome:
@@ -382,7 +378,8 @@ def _build_gff3_indices(gff3_file_path: Path):
     simp_gff = (
         pd.merge(
             left=pd.Series(
-                data=list(set(tx_gene[i] for i in tx_cds.keys())), name="gene_id"
+                data=list(set(tx_gene[i] for i in tx_cds.keys() if i in tx_gene)),
+                name="gene_id",
             ),
             right=pd.DataFrame(data=_df),
             on="gene_id",

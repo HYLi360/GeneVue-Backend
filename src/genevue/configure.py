@@ -75,8 +75,8 @@ class Configure:
         return Path(self.config["PATH"].get(program_name, program_name))
 
     @property
-    def email(self) -> str:
-        return self.config["E-MAIL"]
+    def email(self) -> Optional[str]:
+        return self.config.get("E-MAIL", None)
 
     def set_email(self, new_email: str) -> None:
         self.config["E-MAIL"] = new_email
