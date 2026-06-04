@@ -8,7 +8,7 @@ from pathlib import Path
 from genevue.logsystem import LogLevel, setup_rich_logger, _setup_busco_bridge
 from genevue.console import console
 
-__version__ = "0.0.8"
+__version__ = "0.0.9"
 __nickname__ = "TESTING"
 __full_version__ = f"{__version__} {__nickname__}"
 
