@@ -1,3 +1,4 @@
+import os
 from typing import Literal, Optional
 from pathlib import Path
 
@@ -7,8 +8,7 @@ from dataclasses import dataclass
 from genevue.Tools import iter_path
 from genevue.configure import Configure
 from genevue import setup_rich_logger, console
-from genevue.External.CMDBuilder import CMDBuilder, BatchCMDBuilder
-from genevue.Tools.filesystem import pair_filename
+from genevue.External.CMDBuilder import BatchCMDBuilder
 
 CPU_COUNT = cpu_count()
 
@@ -71,7 +71,9 @@ class MAKEDB:
                     in_file_list = [self.dbseqs_path]
 
                 self.cmd.add_substitute_param("--in", in_file_list)
-                self.cmd.add_substitute_template("--db", "{0.name}.dmnd")
+                self.cmd.add_substitute_template(
+                    "--db", "/".join([f"{self.out_db_path}", "{0.stem}.dmnd"])
+                )
                 self.cmd.add_param("--threads", self.threads)
                 self.cmd.add_flag("--quiet")
                 self.cmd.add_flag("--verbose", self.verbose)
@@ -83,6 +85,12 @@ class MAKEDB:
             self.cmd.run(dry_run=dry_run, processes=self.processes)
         else:
             logger.error("Prevent execution due to expection happened before")
+
+    def dry_run(self):
+        """
+        Simplified of self.run(dry_run=True).
+        """
+        self.run(dry_run=True)
 
 
 class BLASTp:
@@ -100,6 +108,7 @@ class BLASTp:
         output_format: Literal["xml", "tsv"] | int = "tsv",
         verbose: bool = False,
         quiet: bool = True,
+        processes: int = 4,
         other_params: Optional[list] = None,
         diamond_sensitivity: Literal[
             "faster",
@@ -135,6 +144,7 @@ class BLASTp:
 
         self.verbose = verbose
         self.quiet = quiet
+        self.processes = processes
         self.other_params = other_params
 
         self.diamond_sensitivity = diamond_sensitivity
@@ -173,7 +183,7 @@ class BLASTp:
                 self.cmd.add_substitute_param("--query", in_seq_file_list)
                 self.cmd.add_substitute_param("--db", in_db_file_list)
                 self.cmd.add_substitute_template(
-                    "--out", f"{self.res_path}/" "{0.stem}_{1.stem}.out"
+                    "--out", "/".join([f"{self.res_path}", "{0.stem}_{1.stem}.out"])
                 )
                 self.cmd.add_param("--outfmt", self.output_format)
                 self.cmd.add_param("--evalue", self.max_evalue)
@@ -192,5 +202,11 @@ class BLASTp:
                 return
 
     def run(self, dry_run: bool = False):
-        print(f"{self.method} BLASTp started.")
-        self.cmd.run(dry_run=dry_run)
+        logger.info(f"{self.method} BLASTp started.")
+        self.cmd.run(dry_run=dry_run, processes=self.processes)
+
+    def dry_run(self):
+        """
+        Simplified of self.run(dry_run=True).
+        """
+        self.run(dry_run=True)

@@ -1,3 +1,4 @@
+import os
 import re
 import shutil
 import string
@@ -11,6 +12,37 @@ from typing import Any, Literal, List, Optional
 from genevue import setup_rich_logger, console
 
 logger = setup_rich_logger(__name__, console)
+
+tasks_count = 0
+completed = 0
+
+
+def run_single_command(cmd, capture_output=False):
+    logger.info(f"Running {' '.join(cmd)}")
+    try:
+        if capture_output:
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            return True, result.stdout, result.stderr
+        else:
+            subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL)
+            return True, None, None
+    except subprocess.CalledProcessError as e:
+        error_msg = e.stderr if hasattr(e, "stderr") else str(e)
+        logger.error(
+            f"Program {cmd[0] if cmd else 'unknown'} exited abnormally, "
+            f"return code {e.returncode}. Error message: {error_msg}"
+        )
+        return False, None, error_msg
+
+
+def inc_progress(*args):
+    global completed
+    completed += 1
+
+    if completed % 10 == 0:
+        logger.info(
+            f"Progress: {completed} / {tasks_count} ({completed/tasks_count * 100:.2f}%)"
+        )
 
 
 class CMDBuilder:
@@ -82,24 +114,6 @@ class CMDBuilder:
             logger.info(
                 f"Dry-run. This command will be executed: '{' '.join(self.cmd)}'"
             )
-
-
-def run_single_command(cmd, capture_output=False):
-    logger.info(f"Running {' '.join(cmd)}")
-    try:
-        if capture_output:
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-            return True, result.stdout, result.stderr
-        else:
-            subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL)
-            return True, None, None
-    except subprocess.CalledProcessError as e:
-        error_msg = e.stderr if hasattr(e, "stderr") else str(e)
-        logger.error(
-            f"Program {cmd[0] if cmd else 'unknown'} exited abnormally, "
-            f"return code {e.returncode}. Error message: {error_msg}"
-        )
-        return False, None, error_msg
 
 
 class BatchCMDBuilder(CMDBuilder):
@@ -195,7 +209,7 @@ class BatchCMDBuilder(CMDBuilder):
             raise IndexError(
                 f"Template {template!r} references slot {max_ref}, but only "
                 f"{len(self.substitute_list)} substitution(s) have been "
-                f"registered (valid: 0–{max(0, len(self.substitute_list) - 1)}). "
+                f"registered 焦炉(valid: 0–{max(0, len(self.substitute_list) - 1)}). "
                 "Call add_substitute_param() first."
             )
 
@@ -247,22 +261,27 @@ class BatchCMDBuilder(CMDBuilder):
         dry_run: bool = False,
         capture_output: bool = False,
     ):
+        global tasks_count
+        tasks_count = len(self._cmds)
+        logger.info(f"Main process ID: {os.getpid()}")
         if not dry_run:
             if processes == 1:
                 for cmd in self._cmds:
                     run_single_command(cmd, capture_output)
+                    inc_progress()
             else:
                 with Pool(processes=processes) as pool:
                     func = partial(run_single_command, capture_output=capture_output)
                     async_results = [
-                        pool.apply_async(
-                            func,
-                            kwds={"cmd": cmd},
-                        )
+                        pool.apply_async(func, kwds={"cmd": cmd}, callback=inc_progress)
                         for cmd in self._cmds
                     ]
                     results = [ar.get() for ar in async_results]
+                    pool.close()
+                    pool.join()
+                    logger.info(f"Process completed.")
         else:
             logger.info(f"Dry-run. These commands will be executed:")
             for cmd in self._cmds:
                 logger.info(f"{' '.join(cmd)}")
+                inc_progress()

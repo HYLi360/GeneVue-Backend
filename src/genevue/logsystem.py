@@ -11,7 +11,10 @@ import atexit
 from rich.console import Console
 from rich.logging import RichHandler
 
+from genevue.configure import Configure
+
 _log_file_path: Optional[Path] = None
+configure = Configure()
 
 
 class LogLevel(Enum):
@@ -78,7 +81,6 @@ def setup_rich_logger(
     name: str,
     rich_console: Console,
     total_loglevel: int | str = "DEBUG",
-    disp_loglevel: int | str = "INFO",
     file_loglevel: int | str = "DEBUG",
     propagate: bool = False,
     *,
@@ -98,7 +100,7 @@ def setup_rich_logger(
         show_path=False,
         tracebacks_show_locals=True,
     )
-    rich_handler.setLevel(disp_loglevel)
+    rich_handler.setLevel(configure.displog_level)
 
     file_handler = _get_log_file_handler(log_dir, file_loglevel)
 

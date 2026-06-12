@@ -1,4 +1,4 @@
-from typing import Callable, Annotated
+from typing import Callable, Annotated, Literal
 
 import typer
 
@@ -30,18 +30,31 @@ def _build_config_commands(_: Callable, configure: Configure):
         print(_("Configuration reset to defaults."))
 
     @app_config.command(help=_("Set API key for a service provider."))
-    def set_apikey(
-        provider: str = typer.Option(..., help=_("Service provider (e.g. NCBI)")),
-        key: str = typer.Option(..., help=_("API key")),
+    def apikey(
+        provider: Annotated[
+            Literal["NCBI", "ENA"],
+            typer.Argument(..., help=_("Service provider (e.g. NCBI)")),
+        ],
+        key: Annotated[str, typer.Argument(..., help=_("API key"))],
     ):
-        configure.set_apikey(provider, key)
+        configure.set_apikey(str(provider), key)
         configure.save()
 
     @app_config.command(help=_("Set contact email."))
-    def set_email(
-        email: Annotated[str, typer.Argument(..., help=_("Email address"))],
+    def email(
+        your_email: Annotated[str, typer.Argument(..., help=_("Email address"))],
     ):
-        configure.set_email(email)
+        configure.set_email(your_email)
+        configure.save()
+
+    @app_config.command()
+    def displog_level(
+        level: Annotated[
+            Literal["DEBUG", "INFO", "WARNING", "ERROR"], typer.Argument(..., help="")
+        ],
+    ):
+        configure.set_displog_level(str(level))
+        configure.save()
 
     return app_config
 

@@ -4,7 +4,8 @@
 #  See at <https://www.gnu.org/licenses/gpl-3.0.en.html>
 
 from dataclasses import dataclass, field, fields
-from typing import Literal, Tuple, Hashable, List
+from pathlib import Path
+from typing import Literal, Tuple, Hashable, List, cast, Any
 
 import numpy as np
 import pandas as pd
@@ -17,20 +18,25 @@ logger = setup_rich_logger(__name__, console)
 
 
 class CollRes:
-    def __init__(self, chr1: Hashable, chr2: Hashable):
-        self.chr1, self.chr2 = chr1, chr2
-        self.loc1ls, self.loc2ls, self.pvaluels, self.scorels = [], [], [], []
-        self.directls, self.dencels1, self.dencels2 = [], [], []
+    def __init__(self, chr1: Any, chr2: Any):
+        self.chr1, self.chr2 = str(chr1), str(chr2)
+        self.loc1ls: list[NDArray[np.int32]] = []
+        self.loc2ls: list[NDArray[np.int32]] = []
+        self.pvaluels: list[(float | int)] = []
+        self.scorels: list[(float | int)] = []
+        self.directls: list[str] = []
+        self.dencels1: list[(float | int)] = []
+        self.dencels2: list[(float | int)] = []
 
     def add_coll(
         self,
-        loc1,
-        loc2,
-        pvalue,
-        score,
+        loc1: NDArray[np.int32],
+        loc2: NDArray[np.int32],
+        pvalue: float | int,
+        score: float | int,
         direct: Literal["plus", "minus"],
-        dence1,
-        dence2,
+        dence1: float | int,
+        dence2: float | int,
     ):
         self.loc1ls.append(loc1)
         self.loc2ls.append(loc2)
@@ -40,7 +46,9 @@ class CollRes:
         self.dencels1.append(dence1)
         self.dencels2.append(dence2)
 
-    def get_coll(self, idx):
+    def get_coll(
+        self, idx: int
+    ) -> tuple[NDArray[np.int32], NDArray[np.int32], float, float, str, float, float]:
         return (
             self.loc1ls[idx],
             self.loc2ls[idx],
@@ -65,7 +73,6 @@ class Collinearity:
     bed1: pd.DataFrame
     bed2: pd.DataFrame
     blast: pd.DataFrame
-    savefile_name: str
 
     # Initialize parameters with default values
     multiple: int = 1
@@ -75,8 +82,8 @@ class Collinearity:
     position: Literal["order", "end"] = "order"
     grading: Tuple[int, int, int] = (50, 40, 25)
     mg: Tuple[int, int] = (40, 40)
-    gap_penalty: float = -1
-    pvalue_min: float = 1
+    gap_penalty: float | int = -1
+    pvalue_min: float | int = 1
 
     loc1: NDArray = np.array([])
     loc2: NDArray = np.array([])
@@ -126,8 +133,14 @@ class Collinearity:
             )
             return group
 
-        newblast = (
-            blast.groupby(["chr1", "chr2"]).apply(assign_grading).reset_index(drop=True)
+        newblast: pd.DataFrame = cast(
+            pd.DataFrame,
+            cast(
+                object,
+                blast.groupby(["chr1", "chr2"])
+                .apply(assign_grading)
+                .reset_index(drop=True),
+            ),
         )
         newblast["grading"] = newblast["grading"].astype(int)
         return newblast[newblast["grading"] > 0]
@@ -220,8 +233,6 @@ class Collinearity:
                 )
             )
 
-        self._format_output(self.resls)
-
     def _process(
         self,
         chr_tuple: tuple[Hashable, Hashable],
@@ -268,7 +279,7 @@ class Collinearity:
         """
         scorels: NDArray[np.float32] = grading.copy()
         n: int = len(loc1)
-        used: NDArray[np.int32] = np.zeros(n, dtype=np.int32)
+        used: NDArray[np.int32] = cast(NDArray[np.int32], np.zeros(n, dtype=np.int32))
         parent: NDArray[np.int32] = np.full(n, -1, dtype=np.int32)
 
         # i = start point.
@@ -404,7 +415,7 @@ class Collinearity:
                     continue
 
                 # bounding-box
-                l1, l2, N1 = (
+                l1, l2, n1 = (
                     loc1[path],
                     loc2[path],
                     times[path.min() : path.max() + 1].sum(),
@@ -425,10 +436,10 @@ class Collinearity:
                 # calculate p-value
                 pvalue = self._p_value_calc(
                     m=len(path),
-                    N=path.max() - path.min() + 1,
-                    N1=N1,
-                    L1=l1max - l1min + 1,
-                    L2=l2max - l2min + 1,
+                    n=path.max() - path.min() + 1,
+                    n1=n1,
+                    l1=l1max - l1min + 1,
+                    l2=l2max - l2min + 1,
                     score=score,
                 )
 
@@ -469,7 +480,7 @@ class Collinearity:
                     continue
 
                 # bounding-box
-                l1, l2, N1 = (
+                l1, l2, n1 = (
                     loc1[path],
                     loc2[path],
                     times[path.min() : path.max() + 1].sum(),
@@ -490,10 +501,10 @@ class Collinearity:
                 # calculate p-value
                 pvalue = self._p_value_calc(
                     m=len(path),
-                    N=path.max() - path.min() + 1,
-                    N1=N1,
-                    L1=l1max - l1min + 1,
-                    L2=l2max - l2min + 1,
+                    n=path.max() - path.min() + 1,
+                    n1=n1,
+                    l1=l1max - l1min + 1,
+                    l2=l2max - l2min + 1,
                     score=score,
                 )
 
@@ -516,18 +527,18 @@ class Collinearity:
                 ) = (0, 0)
         return res
 
-    def _p_value_calc(self, m, N, N1, L1, L2, score) -> float:
+    def _p_value_calc(self, m, n, n1, l1, l2, score) -> float:
         return (
             (1 - score / m / self.grading[0])
-            * (N1 - m + 1)
-            / N
-            * (L1 - m + 1)
-            * (L2 - m + 1)
-            / L1
-            / L2
+            * (n1 - m + 1)
+            / n
+            * (l1 - m + 1)
+            * (l2 - m + 1)
+            / l1
+            / l2
         )
 
-    def _format_output(self, total_res_ls: list[CollRes]) -> None:
+    def export(self, collfile_path: Path, anchor_path: Path) -> None:
         # Target format:
         # Alignment 1: score=100 pvalue=0.03 N=3 1&1 minus
         # s1g1 1 s2g1 1 1
@@ -543,9 +554,9 @@ class Collinearity:
         counter = 1
 
         # Start!
-        fout = open(f"{self.savefile_name}.coll", "w+")
-        anchor = open(f"{self.savefile_name}.anchor", "w+")
-        for collres in total_res_ls:
+        fout = open(collfile_path, "w")
+        anchor = open(anchor_path, "w")
+        for collres in self.resls:
             for i in range(len(collres)):
                 # Get block.
                 loc1, loc2, pvalue, score, direct, dence1, dence2 = collres.get_coll(i)

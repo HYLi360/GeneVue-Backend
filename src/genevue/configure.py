@@ -80,11 +80,13 @@ class Configure:
 
     def set_email(self, new_email: str) -> None:
         self.config["E-MAIL"] = new_email
-        json.dump(self.config, open(HOME_PATH / "genevue" / "config.json", "w"))
 
     @property
-    def loglevel(self) -> str:
-        return self.config["LOGLEVEL"]
+    def displog_level(self) -> str:
+        return self.config.get("LOGLEVEL", "INFO")
+
+    def set_displog_level(self, new_level: str) -> None:
+        self.config["LOGLEVEL"] = new_level
 
     def set_l10n(self, mode: Literal["change_lang", "change_ts_path"], new_value: str):
         match mode:

@@ -1,0 +1,391 @@
+#  Copyright (C) 2025-2026, HYLi360.
+#  Free software distributed under the terms of the GNU GPL-3.0 license,
+#  and comes with ABSOLUTELY NO WARRANTY.
+#  See at <https://www.gnu.org/licenses/gpl-3.0.en.html>
+"""
+A series of GFF3-handle tools.
+
+"""
+
+import re
+from pathlib import Path
+from typing import List, Dict, Optional, Any, Tuple
+from urllib.parse import unquote
+
+import pandas as pd
+import polars as pl
+import rich
+from rich.table import Table
+
+from genevue import setup_rich_logger, console
+
+logger = setup_rich_logger(__name__, console)
+_SOURCE = "GVFIX"
+
+
+class BlazingGFF3:
+    def __init__(self, bgff3_path: Optional[Path] = None):
+        self.data = pl.DataFrame()
+        self.gff3_path = Path()
+        self.bgff3_path = Path()
+
+        if bgff3_path is not None:
+            self.read(bgff3_path)
+
+    def build(self, gff3_path: Path) -> None:
+        self.gff3_path = gff3_path
+
+        gff3 = open(gff3_path)
+        data = []
+
+        for line in gff3:
+            if line.startswith("#"):
+                continue
+
+            linels = line.strip().split(maxsplit=8)
+            feature = dict(
+                zip(
+                    [
+                        "seqid",
+                        "source",
+                        "type",
+                        "start",
+                        "end",
+                        "length" "score",
+                        "strand",
+                        "strand_readable",
+                        "phase",
+                    ],
+                    [
+                        linels[0],
+                        linels[1],
+                        linels[2] if linels[2] != "transcript" else "mRNA",
+                        int(linels[3]),
+                        int(linels[4]),
+                        int(linels[4]) - int(linels[3]) + 1,
+                        float(linels[5]) if linels[5] != "." else 0,
+                        {"+": 1, "-": -1}.get(linels[6], 0),
+                        linels[6],
+                        int(linels[7]) if linels[7] != "." else 0,
+                    ],
+                )
+            )
+
+            _attr_string = linels[8]
+            if _attr_string[-1] == ";":
+                _attr_string = _attr_string[:-1]
+
+            for attr in _attr_string.split(";"):
+                ls = attr.split("=", maxsplit=1)
+                feature[ls[0]] = unquote(ls[1])
+
+            data.append(feature)
+
+        gff3.close()
+
+        self.data = pl.DataFrame(data=data)
+
+    def read(self, bgff3_path: Path) -> None:
+        self.bgff3_path = bgff3_path
+        self.data = pl.read_parquet(bgff3_path)
+
+    def brief_report(self):
+        seqids_df = self.data.group_by("seqid").agg(pl.count().alias("count"))
+        rich.print(f"Seqids count:                       {seqids_df.shape[0]}")
+
+        features_count = self.data.shape[0]
+        small_count = seqids_df.filter(pl.col("count") < (features_count // 20)).shape[
+            0
+        ]
+        rich.print(
+            f"Small seqs count (less than {features_count // 20}): {small_count}"
+        )
+
+        rich.print(
+            f"Genes count:                        {self.data.filter(pl.col("type") == "gene").shape[0]}"
+        )
+        rich.print(
+            f"mRNAs count:                        {self.data.filter(pl.col("type") == "mRNA").shape[0]}"
+        )
+        rich.print(
+            f"CDSs count:                         {self.data.filter(pl.col("type") == "CDS").shape[0]}"
+        )
+        rich.print(f"Features count:                     {features_count}")
+
+        rich.print(f"Source and type of features:")
+        source_and_type_df = (
+            self.data.group_by(["source", "type"])
+            .agg(pl.count().alias("counts"))
+            .sort("counts", descending=True)
+        )
+        source_and_type_ls = list(source_and_type_df.iter_rows())
+        source_and_type_table = Table()
+        source_and_type_table.add_column("Source", no_wrap=True)
+        source_and_type_table.add_column("Type", no_wrap=True)
+        source_and_type_table.add_column("Counts", no_wrap=True)
+        source_and_type_table.add_column("Percent", justify="right", no_wrap=True)
+        for _source, _type, _counts in source_and_type_ls:
+            source_and_type_table.add_row(
+                _source, _type, str(_counts), f"{_counts/features_count*100: 3.2f}%"
+            )
+        rich.print(source_and_type_table)
+
+    def search_text(
+        self, text: List[str] | str, columns: Optional[List[str]] = None
+    ) -> pl.DataFrame:
+        """
+        Search text(s) which appears in bgff3 certainly column(s), or all columns.
+        Notes that it always do `or` operation if you input at least 2 conditions (contains columns, texts, or both).
+        """
+        # select all columns if you not specified
+        if columns is None:
+            columns = [
+                col for col in self.data.columns if self.data[col].dtype == pl.Utf8
+            ]
+
+        # force `text` turn into `list` if only get a string
+        textls = [text] if isinstance(text, str) else text
+
+        # build search conditions
+        conditions = []
+        for col in columns:
+            for text in textls:
+                conditions.append(pl.col(col).str.contains(re.escape(text)))
+
+        query = conditions[0]
+        for cond in conditions[1:]:
+            query = query | cond
+
+        # search
+        return self.data.filter(query)
+
+    def search_exact(self, value: Any):
+        pass
+
+    def search_regex(self, regex: str):
+        """
+        Regex enhanced searching.
+        """
+        pass
+
+    # === Range Search ===
+    def search_region(self, seqid: str, start: int = 0, end: int = -1):
+        if int == -1:
+            return self.data.filter(pl.col("seqid") == seqid)
+
+        return self.data.filter(
+            (pl.col("seqid") == seqid)
+            & (pl.col("start") >= start)
+            & (pl.col("end") <= end)
+        )
+
+    def get_feature(self, feature_id: str) -> List[Dict]:
+        features = self.data.filter(pl.col("ID") == feature_id)
+
+        if features.shape[0] == 0:
+            return []
+
+        res = []
+
+        for feature in features.iter_rows(named=True):
+            res.append({k: w for k, w in feature.items() if w is not None})
+
+        return res
+
+    # === Iter Search ===
+    def get_subfeatures(
+        self, feature_id: str, recursive: bool = False, containing_self: bool = False
+    ) -> pl.DataFrame:
+        """
+        Get children features of this feature.
+
+        Return a empty pl.DataFrame if
+          - feature name doesn't appear in gff3, or
+          - this feature has no children (a leaf feature).
+
+        Args:
+            feature_id
+            recursive
+            containing_self
+        """
+
+        if not recursive:
+            return self.data.filter(pl.col("Parent") == feature_id)
+
+        res: List[pl.DataFrame] = []
+        current_layer = [feature_id]
+        visited = set()
+
+        if containing_self:
+            res.append(self.data.filter(pl.col("ID") == feature_id))
+
+        while current_layer:
+            children = self.data.filter(pl.col("Parent").is_in(current_layer))
+
+            if len(children) == 0:
+                break
+
+            res.append(children)
+
+            next_layer = children.select(pl.col("ID")).to_series().unique().to_list()
+            current_layer = [_id for _id in next_layer if _id not in visited]
+            visited.update(current_layer)
+
+        if res:
+            return pl.concat(res)
+
+        return pl.DataFrame()
+
+    def get_parent_feature(
+        self,
+        feature_id: str | List[str],
+        max_depth: int = 100,
+        until: str = "",
+    ) -> pl.DataFrame:
+        if isinstance(feature_id, str):
+            feature_id = [feature_id]
+
+        result_ids = set(feature_id)
+        current_ids = set(feature_id)
+
+        for depth in range(max_depth):
+            parents = (
+                self.data.filter(pl.col("ID").is_in(list(current_ids)))
+                .select("Parent")
+                .drop_nulls()["Parent"]
+                .to_list()
+            )
+
+            if not parents:
+                break
+
+            current_ids = set(parents)
+            result_ids.update(current_ids)
+
+            if until:
+                types = (
+                    self.data.filter(pl.col("ID").is_in(list(current_ids)))
+                    .select("type")["type"]
+                    .to_list()
+                )
+                if until in types:
+                    break
+
+        return self.data.filter(
+            pl.col("ID")
+            .is_in(list(result_ids))
+            .and_((pl.col("type") == until).or_(pl.col("Parent").is_null()))
+        )
+
+    def get_gene_by_protein_id(self, protein_id: str):
+        if "protein_id" in self.data.columns:
+            items = (
+                self.data.filter(pl.col("protein_id") == protein_id)["ID"]
+                .unique()
+                .to_list()
+            )
+            return self.get_parent_feature(items, until="gene")
+        return pl.DataFrame()
+
+    def get_parent_id(self, feature_id: str) -> List[str]:
+        df = self.get_parent_feature(feature_id)
+
+        if df.shape[0] == 0:
+            return []
+        else:
+            return df.select(pl.col("ID")).unique().to_series().to_list()
+
+    def get_full_hierarchy_dict(
+        self, feature_id: str, containing_self: bool = True
+    ) -> List[Dict]:
+        subfeatures = self.get_subfeatures(
+            feature_id, recursive=True, containing_self=containing_self
+        )
+
+        if subfeatures.shape[0] == 0:
+            return []
+
+        res = []
+
+        for feature in subfeatures.iter_rows(named=True):
+            res.append({k: w for k, w in feature.items() if w is not None})
+
+        return res
+
+    # === Aggregative analyse ===
+    def get_gene_density(self, bin_size: float | int = 100_000) -> pl.DataFrame:
+        """
+        Get the gene density from bgff3 (genes per bin_size), useful for chromosome plotting.
+        Result is a 3-column DataFrame:
+        pl.DataFrame(
+            {
+                "seqid": [..., ..., ...,],
+                "start": [0, 100_000, 200_000,],
+                "end":   [100_000, 200_000, 300_000,]
+                "genes": [1_111, 2_222, 3_333,],
+                "density": [0.011_11, 0.022_22, 0.033_33,],
+            }
+        )
+        """
+        genes = self.data.filter(pl.col("type") == "gene")
+
+        return (
+            genes.with_columns((pl.col("start") // bin_size).alias("steps"))
+            .group_by(["seqid", "steps"])
+            .agg(
+                [
+                    pl.col("start").min().alias("start"),
+                    pl.col("end").max().alias("end"),
+                    pl.count().alias("genes"),
+                ]
+            )
+            .sort(by=["seqid", "steps"])
+        )
+
+    # === Modifing ===
+
+    # === Export ===
+    def to_parquet(self, parquet_path: Path):
+        self.data.to_pandas().to_parquet(parquet_path)
+
+    def to_bed(
+        self, bed_path: Optional[Path] = None, select_type: str = "gene"
+    ) -> pd.DataFrame:
+        df = (
+            self.data.filter(pl.col("type") == select_type)
+            .sort(["seqid", "start"])
+            .select(
+                pl.col("seqid"),
+                pl.col("start"),
+                pl.col("end"),
+                pl.col("ID"),
+                pl.col("score"),
+                pl.col("strand_readable"),
+            )
+            .sort(pl.col("seqid"), pl.col("start"))
+        )
+        if bed_path is not None:
+            df.to_pandas().to_csv(bed_path, sep="\t", index=False, header=False)
+
+        return df.to_pandas()
+
+    @property
+    def sources(self) -> List[str]:
+        if self.data.shape[0] == 0:
+            return []
+        else:
+            return self.data.select("source").to_series().unique().to_list()
+
+    @property
+    def types(self) -> List[str]:
+        if self.data.shape[0] == 0:
+            return []
+        else:
+            return self.data.select("type").to_series().unique().to_list()
+
+    @property
+    def sources_and_types(self) -> List[Tuple[str, str]]:
+        if self.data.shape[0] == 0:
+            return []
+        else:
+            return list(self.data.select(["source", "type"]).unique().iter_rows())

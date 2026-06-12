@@ -30,6 +30,16 @@ TYPE_SWITCH_DICT = {
     "RNA_NUCLEOTIDE_FASTA": "RNA_FASTA",
     "SEQUENCE_REPORT": "SEQUENCE_REPORT",
 }
+TYPE_EXNAME_DICT = {
+    "CDS_FASTA": ".fna",
+    "GENOME_GBFF": ".gbff",
+    "GENOME_FASTA": ".fna",
+    "GENOME_GFF": ".gff3",
+    "GENOME_GTF": ".gtf",
+    "PROT_FASTA": ".faa",
+    "RNA_FASTA": ".fna",
+    "SEQUENCE_REPORT": ".json",
+}
 
 
 class Includes(Enum):
@@ -357,6 +367,8 @@ class Datasets4Genome:
         # try open dataset_catalog_simplified.json
         if not (self.foldpath / "ncbi_dataset" / "data").exists():
             logger.error("Cannot found dataset_catalog_simplified")
+            return
+
         catalog = json.load(
             open(
                 self.foldpath
@@ -377,7 +389,12 @@ class Datasets4Genome:
                 source = (
                     self.foldpath / "ncbi_dataset" / "data" / catalog[accession][_type]
                 )
-                target: Path = self.foldpath / "symlinks" / _type / accession
+                target: Path = (
+                    self.foldpath
+                    / "symlinks"
+                    / _type
+                    / f"{accession}{TYPE_EXNAME_DICT[_type]}"
+                )
                 target.parent.mkdir(exist_ok=True)
                 logger.info(f"Set symlink for {target}")
                 os.symlink(src=source, dst=target)
