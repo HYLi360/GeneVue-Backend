@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Literal, Dict
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 
@@ -83,7 +83,7 @@ BLOSUM62 = {
     "Y": 0.034,
 }
 
-MOLECULAR_FORMULA_AMINOACID = {
+MOLECULAR_FORMULA_AMINOACID: Dict[str, Dict[str, int]] = {
     "A": {"C": 3, "H": 7, "N": 1, "O": 2, "S": 0},
     "C": {"C": 3, "H": 7, "N": 1, "O": 2, "S": 1},
     "D": {"C": 4, "H": 7, "N": 1, "O": 4, "S": 0},
@@ -110,7 +110,9 @@ MOLECULAR_FORMULA_AMINOACID = {
 def molecular_formula_protein(protein_seq: str | Seq | SeqRecord) -> tuple[str, int]:
     res = {"C": 0, "H": 0, "N": 0, "O": 0, "S": 0}
     for aa in protein_seq:
-        faa = MOLECULAR_FORMULA_AMINOACID.get(aa.upper())
+        faa: Dict[str, int] = MOLECULAR_FORMULA_AMINOACID.get(
+            aa.upper(), {"C": 0, "H": 0, "N": 0, "O": 0, "S": 0}
+        )
         res = {
             "C": res["C"] + faa["C"],
             "H": res["H"] + faa["H"],

@@ -3,21 +3,21 @@
 #  and comes with ABSOLUTELY NO WARRANTY.
 #  See at <https://www.gnu.org/licenses/gpl-3.0.en.html>
 """
-A series of GFF3-handle tools.
-
+A series of GFF3-handle tools. Mainly powered by Polars, a high-perference DataFrame library.
 """
 
 import re
 from pathlib import Path
-from typing import List, Dict, Optional, Any, Tuple
+from typing import List, Dict, Optional, Any, Tuple, Literal
 from urllib.parse import unquote
 
 import pandas as pd
 import polars as pl
 import rich
+from polars import Null
 from rich.table import Table
 
-from genevue import setup_rich_logger, console
+from genevue import setup_rich_logger, console, protein
 
 logger = setup_rich_logger(__name__, console)
 _SOURCE = "GVFIX"
@@ -38,6 +38,7 @@ class BlazingGFF3:
         gff3 = open(gff3_path)
         data = []
 
+        # main build
         for line in gff3:
             if line.startswith("#"):
                 continue
@@ -51,7 +52,8 @@ class BlazingGFF3:
                         "type",
                         "start",
                         "end",
-                        "length" "score",
+                        "length",
+                        "score",
                         "strand",
                         "strand_readable",
                         "phase",
@@ -85,32 +87,59 @@ class BlazingGFF3:
 
         self.data = pl.DataFrame(data=data)
 
+        if self.data.filter(pl.col("type") == "mRNA").shape[0] == 0:
+            # CDS -> gene
+            cds_gene_lookup = self.data.filter(pl.col("type") == "CDS").select(
+                pl.col("ID").alias("CDS"), pl.col("Parent").alias("gene")
+            )
+
+            # combine
+            self.data = self.data.join(
+                cds_gene_lookup, left_on="ID", right_on="CDS", how="left"
+            )
+
+        else:
+            # Search backward to find the corresponding mRNA/CDS -> gene
+            mrna_gene_lookup = self.data.filter(pl.col("type") == "mRNA").select(
+                pl.col("ID").alias("_mrna_id"), pl.col("Parent").alias("_gene_of_mrna")
+            )
+            self.data = self.data.join(
+                mrna_gene_lookup, left_on="Parent", right_on="_mrna_id", how="left"
+            )
+            self.data = self.data.with_columns(
+                pl.when(pl.col("type") == "gene")
+                .then(pl.col("ID"))
+                .when(pl.col("type") == "mRNA")
+                .then(pl.col("Parent"))
+                .otherwise(pl.col("_gene_of_mrna"))
+                .alias("gene")
+            ).drop("_gene_of_mrna")
+
     def read(self, bgff3_path: Path) -> None:
         self.bgff3_path = bgff3_path
         self.data = pl.read_parquet(bgff3_path)
 
     def brief_report(self):
         seqids_df = self.data.group_by("seqid").agg(pl.count().alias("count"))
-        rich.print(f"Seqids count:                       {seqids_df.shape[0]}")
+        rich.print(f"Seqids count:                {seqids_df.shape[0]}")
 
         features_count = self.data.shape[0]
         small_count = seqids_df.filter(pl.col("count") < (features_count // 20)).shape[
             0
         ]
         rich.print(
-            f"Small seqs count (less than {features_count // 20}): {small_count}"
-        )
-
-        rich.print(
-            f"Genes count:                        {self.data.filter(pl.col("type") == "gene").shape[0]}"
+            f"Small seqs count\n(features less than {features_count // 20}): {small_count}"
         )
         rich.print(
-            f"mRNAs count:                        {self.data.filter(pl.col("type") == "mRNA").shape[0]}"
+            f"Genes count:                 {self.data.filter(pl.col("type") == "gene").shape[0]}"
         )
         rich.print(
-            f"CDSs count:                         {self.data.filter(pl.col("type") == "CDS").shape[0]}"
+            f"mRNAs count:                 {self.data.filter(pl.col("type") == "mRNA").shape[0]}"
         )
-        rich.print(f"Features count:                     {features_count}")
+        rich.print(
+            f"CDSs count:                  {self.data.filter(pl.col("type") == "CDS").shape[0]}"
+        )
+        rich.print(f"Total eatures count:         {features_count}")
 
         rich.print(f"Source and type of features:")
         source_and_type_df = (
@@ -130,6 +159,7 @@ class BlazingGFF3:
             )
         rich.print(source_and_type_table)
 
+    # === Search ===
     def search_text(
         self, text: List[str] | str, columns: Optional[List[str]] = None
     ) -> pl.DataFrame:
@@ -159,8 +189,32 @@ class BlazingGFF3:
         # search
         return self.data.filter(query)
 
-    def search_exact(self, value: Any):
-        pass
+    def search_exact(
+        self, value: Any, columns: Optional[List[str]] = None
+    ) -> pl.DataFrame:
+        # select all columns if you not specified
+        if columns is None:
+            # only scan the columns which have the same data type of value
+            columns = [
+                col for col in self.data.columns if self.data[col].dtype == type(value)
+            ]
+        else:
+            columns = [
+                col
+                for col in self.data.columns
+                if (self.data[col].dtype == type(value)) and (col in columns)
+            ]
+
+        conditions = []
+        for col in columns:
+            conditions.append(pl.col(col).eq(value))
+
+        query = conditions[0]
+
+        for cond in conditions[1:]:
+            query = query | cond
+
+        return self.data.filter(query)
 
     def search_regex(self, regex: str):
         """
@@ -179,6 +233,7 @@ class BlazingGFF3:
             & (pl.col("end") <= end)
         )
 
+    # === get anything you want ===
     def get_feature(self, feature_id: str) -> List[Dict]:
         features = self.data.filter(pl.col("ID") == feature_id)
 
@@ -192,9 +247,11 @@ class BlazingGFF3:
 
         return res
 
-    # === Iter Search ===
     def get_subfeatures(
-        self, feature_id: str, recursive: bool = False, containing_self: bool = False
+        self,
+        feature_id: str | List[str],
+        recursive: bool = False,
+        containing_self: bool = False,
     ) -> pl.DataFrame:
         """
         Get children features of this feature.
@@ -210,10 +267,13 @@ class BlazingGFF3:
         """
 
         if not recursive:
-            return self.data.filter(pl.col("Parent") == feature_id)
+            return self.data.filter(pl.col("Parent").is_in(feature_id))
 
         res: List[pl.DataFrame] = []
-        current_layer = [feature_id]
+        if isinstance(feature_id, str):
+            current_layer = [feature_id]
+        else:
+            current_layer = feature_id
         visited = set()
 
         if containing_self:
@@ -312,6 +372,56 @@ class BlazingGFF3:
 
         return res
 
+    def get_longest_transcript_per_gene(
+        self, mode: Literal["mRNA", "CDS"] = "mRNA"
+    ) -> pl.DataFrame:
+        """
+        For each gene, find the transcript (mRNA) with the longest total CDS length.
+
+        GFF3 hierarchy: gene -> mRNA -> CDS.
+        Total CDS length per mRNA = sum of all its CDS feature lengths.
+        If the 'protein_id' column exists, prefer it over the mRNA ID.
+
+        Returns:
+            DataFrame with columns: gene, best_id, [best_protein]
+        """
+        mrna = self.data.filter(pl.col("type") == "mRNA")
+        cds = self.data.filter(pl.col("type") == "CDS")
+
+        _expr = [
+            pl.col("ID")
+            .sort_by(pl.col("length"), descending=True)
+            .first()
+            .alias("best_id")
+        ]
+
+        if "protein_id" in self.data.columns:
+            _expr.append(
+                pl.col("protein_id")
+                .sort_by("length", descending=True)
+                .first()
+                .alias("best_protein"),
+            )
+
+        if mrna.is_empty() or (mode == "CDS"):
+            cds_and_length = cds.group_by(pl.col("ID")).agg(pl.col("length").sum())
+            cds = cds.join(cds_and_length, left_on="ID", right_on="ID", how="left")
+            return cds.group_by(pl.col("gene")).agg(_expr)
+        else:
+            mrna_and_length = cds.group_by(pl.col("Parent")).agg(pl.col("length").sum())
+            mrna = mrna.join(
+                mrna_and_length, left_on="ID", right_on="Parent", how="left"
+            )
+            # get protein id
+            if "protein_id" in self.data.columns:
+                mrna = mrna.drop("protein_id").join(
+                    cds.select([pl.col("Parent"), pl.col("protein_id")]),
+                    left_on="ID",
+                    right_on="Parent",
+                    how="left",
+                )
+            return mrna.group_by(pl.col("gene")).agg(_expr)
+
     # === Aggregative analyse ===
     def get_gene_density(self, bin_size: float | int = 100_000) -> pl.DataFrame:
         """
@@ -346,28 +456,73 @@ class BlazingGFF3:
 
     # === Export ===
     def to_parquet(self, parquet_path: Path):
+        """recommend."""
         self.data.to_pandas().to_parquet(parquet_path)
 
     def to_bed(
-        self, bed_path: Optional[Path] = None, select_type: str = "gene"
-    ) -> pd.DataFrame:
-        df = (
-            self.data.filter(pl.col("type") == select_type)
-            .sort(["seqid", "start"])
-            .select(
-                pl.col("seqid"),
-                pl.col("start"),
-                pl.col("end"),
-                pl.col("ID"),
+        self,
+        bed_path: Optional[Path] = None,
+        mode: Literal["gene", "mRNA", "CDS", "protein"] = "gene",
+    ) -> pl.DataFrame:
+        if mode == "gene":
+            df = self.data.filter(pl.col("type") == "gene").select(
+                pl.col("seqid").alias("chrom"),
+                pl.col("start").alias("chromStart"),
+                pl.col("end").alias("chromEnd"),
+                pl.col("ID").alias("name"),
                 pl.col("score"),
-                pl.col("strand_readable"),
+                pl.col("strand_readable").alias("strand"),
             )
-            .sort(pl.col("seqid"), pl.col("start"))
-        )
+        elif mode == "mRNA":
+            df = self.get_longest_transcript_per_gene(mode="mRNA")
+            df = df.join(
+                self.to_bed(mode="gene"),
+                left_on="gene",
+                right_on="name",
+                how="right",
+            ).select(
+                pl.col("chrom"),
+                pl.col("chromStart"),
+                pl.col("chromEnd"),
+                pl.col("best_id").alias("name"),
+                pl.col("score"),
+                pl.col("strand"),
+            )
+        elif mode == "CDS":
+            df = self.get_longest_transcript_per_gene(mode="CDS")
+            df = df.join(
+                self.to_bed(mode="gene"),
+                left_on="gene",
+                right_on="name",
+                how="right",
+            ).select(
+                pl.col("chrom"),
+                pl.col("chromStart"),
+                pl.col("chromEnd"),
+                pl.col("best_id").alias("name"),
+                pl.col("score"),
+                pl.col("strand"),
+            )
+        else:
+            df = self.get_longest_transcript_per_gene(mode="mRNA")
+            df = df.join(
+                self.to_bed(mode="gene"),
+                left_on="gene",
+                right_on="name",
+                how="right",
+            ).select(
+                pl.col("chrom"),
+                pl.col("chromStart"),
+                pl.col("chromEnd"),
+                pl.col("best_protein").alias("name"),
+                pl.col("score"),
+                pl.col("strand"),
+            )
+
         if bed_path is not None:
             df.to_pandas().to_csv(bed_path, sep="\t", index=False, header=False)
 
-        return df.to_pandas()
+        return df
 
     @property
     def sources(self) -> List[str]:
