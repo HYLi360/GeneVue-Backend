@@ -1,6 +1,6 @@
 [project]
 name = "GeneVue"
-version = "0.0.11"
+version = "0.0.13"
 description = "Python backend of GeneVue."
 authors = [
     { name = "hyli360", email = "lihuanyu2003@gmail.com" }
@@ -10,9 +10,13 @@ license-files = ["LICEN[CS]E*"]
 requires-python = ">=3.11"
 dependencies = [
     "aiohttp>=3.13.3",
+    "bgzip>=0.5.1",
     "biopython>=1.86",
+    "bokeh>=3.9.1",
     "logomaker>=0.8.7",
+    "lxml>=6.1.1",
     "matplotlib>=3.10.8",
+    "newick>=1.11.0",
     "numpy>=2.2.6",
     "pandas>=2.3.3",
     "pandas-stubs~=2.3.3",
@@ -49,15 +53,11 @@ genevue = "genevue.main:main"
 requires = ["uv_build>=0.11.11,<0.12"]
 build-backend = "uv_build"
 
-[dependency-groups]
-dev = [
-    "basedpyright>=1.39.7",
-]
-
 [tool.pytest.ini_options]
 minversion = "7.0"
 addopts = """
 -ra
+
 --strict-markers
 --cov=genevue
 --cov-report=term-missing

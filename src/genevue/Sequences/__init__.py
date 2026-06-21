@@ -1,9 +1,60 @@
+import re
 from pathlib import Path
-from typing import Literal, List, Optional
+from typing import Literal, List, Optional, overload
+from collections import defaultdict
+from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
 from genevue.Sequences.FASTA import FASTA
 from genevue.Sequences.combine_and_split import simple_combine
 
 import typer
+
+
+# Universal functions.
+def is_seq_type(
+    sequence: str | Seq | SeqRecord, seqtype: Literal["DNA", "RNA", "protein"]
+):
+    char_dict = defaultdict(int)
+    for char in sequence:
+        char_dict[char.lower()] += 1
+
+    if char_dict["a"] + char_dict["t"] + char_dict["g"] + char_dict["c"] + char_dict[
+        "n"
+    ] == len(sequence):
+        if seqtype == "DNA":
+            return True
+        return False
+    elif char_dict["a"] + char_dict["u"] + char_dict["g"] + char_dict["c"] + char_dict[
+        "n"
+    ] == len(sequence):
+        if seqtype == "RNA":
+            return True
+        return False
+    else:
+        if seqtype == "protein":
+            return True
+        return False
+
+
+def remove_any_spacechar(sequence: str):
+    return re.sub(r"\s+", "", sequence)
+
+
+def complement(sequence: str) -> str:
+    return str(Seq(sequence).complement())
+
+
+def reverse(sequence: str) -> str:
+    return sequence[::-1]
+
+
+def reverse_complement(sequence: str) -> str:
+    return complement(reverse(sequence))
+
+
+def frame6trans(sequence: str | Seq | SeqRecord):
+    pass
+
 
 app_sequence = typer.Typer(name="sequence", help="sequence tool")
 

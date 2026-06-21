@@ -5,7 +5,7 @@ from typing import Literal
 from rich.table import Table
 
 from genevue import console
-from genevue.utils.parse import codeml_pairwise, yn00_result
+from genevue.Utils.Parse import codeml_pairwise, yn00_result
 
 # ---Wrapper API for PAML package.--------------------------------------------------------------------
 # ---Map for NCBI GenBank Codon Table to PAML ICODE.--------------------------------------------------

@@ -5,9 +5,9 @@ import typer
 from genevue.Remote import app_remote
 from genevue.QC import app_qc
 from genevue.Sequences import app_sequence
-from genevue.Tools import app_tools
-from genevue.Tools.completion import install_completion, uninstall_completion
+from genevue.Utils.Completion import install_completion, uninstall_completion
 from genevue.configure import Configure
+from genevue.Utils import app_file
 
 
 def _build_config_commands(_: Callable, configure: Configure):
@@ -83,7 +83,7 @@ def _build_app(_: Callable, configure: Configure) -> typer.Typer:
 
     app.add_typer(app_remote, name="remote")
 
-    app.add_typer(app_tools, name="tools")
+    app.add_typer(app_file, name="file")
 
     app_config = _build_config_commands(_, configure)
     app.add_typer(app_config, name="config")

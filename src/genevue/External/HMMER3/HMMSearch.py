@@ -13,7 +13,7 @@ from genevue import setup_rich_logger, console
 from genevue.External.CMDBuilder import CMDBuilder, BatchCMDBuilder
 from genevue.Pipelines import ProcessNode
 from genevue.configure import Configure
-from genevue.Tools.filesystem import iter_path
+from genevue.Utils.FileSystem import iter_path
 
 from Bio import SeqIO
 

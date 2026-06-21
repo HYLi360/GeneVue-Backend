@@ -1,23 +1,27 @@
-#  Copyright (C) 2025-2026, HYLi360.
-#  Free software distributed under the terms of the GNU GPL-3.0 license,
-#  and comes with ABSOLUTELY NO WARRANTY.
-#  See at <https://www.gnu.org/licenses/gpl-3.0.en.html>
 """
+src/genevue/plot/CollScatPlot.py
+
+(C) 2026 HYLi360. All rights reserved.
+
+see LICENSE in LICENSE
+see side-package LICENSEs (if used) in LICENSE_OF_SIDE_PACKAGES
+
+--------------------
 A series of GFF3-handle tools. Mainly powered by Polars, a high-perference DataFrame library.
 """
 
+import gzip
 import re
 from pathlib import Path
 from typing import List, Dict, Optional, Any, Tuple, Literal
-from urllib.parse import unquote
+from urllib.parse import unquote as url_unquote
 
-import pandas as pd
 import polars as pl
 import rich
-from polars import Null
 from rich.table import Table
 
-from genevue import setup_rich_logger, console, protein
+from genevue import setup_rich_logger, console, FormatNotSuitableError
+from genevue.Utils.FileSystem import check_filetype
 
 logger = setup_rich_logger(__name__, console)
 _SOURCE = "GVFIX"
@@ -35,7 +39,13 @@ class BlazingGFF3:
     def build(self, gff3_path: Path) -> None:
         self.gff3_path = gff3_path
 
-        gff3 = open(gff3_path)
+        if check_filetype(gff3_path, "gz"):
+            gff3 = gzip.open(gff3_path, "rt")
+        elif check_filetype(gff3_path, "gff3"):
+            gff3 = open(gff3_path)
+        else:
+            raise FormatNotSuitableError
+
         data = []
 
         # main build
@@ -79,7 +89,7 @@ class BlazingGFF3:
 
             for attr in _attr_string.split(";"):
                 ls = attr.split("=", maxsplit=1)
-                feature[ls[0]] = unquote(ls[1])
+                feature[ls[0]] = url_unquote(ls[1])
 
             data.append(feature)
 
@@ -453,6 +463,11 @@ class BlazingGFF3:
         )
 
     # === Modifing ===
+    def add_feature(self):
+        pass
+
+    def modify_feature(self):
+        pass
 
     # === Export ===
     def to_parquet(self, parquet_path: Path):
@@ -463,9 +478,14 @@ class BlazingGFF3:
         self,
         bed_path: Optional[Path] = None,
         mode: Literal["gene", "mRNA", "CDS", "protein"] = "gene",
+        chrname_filter: Optional[List[str]] = None,
     ) -> pl.DataFrame:
         if mode == "gene":
-            df = self.data.filter(pl.col("type") == "gene").select(
+            if not chrname_filter:
+                chrname_filter = self.data["seqid"].unique().to_list()
+            df = self.data.filter(
+                (pl.col("type") == "gene") & pl.col("seqid").is_in(chrname_filter)
+            ).select(
                 pl.col("seqid").alias("chrom"),
                 pl.col("start").alias("chromStart"),
                 pl.col("end").alias("chromEnd"),

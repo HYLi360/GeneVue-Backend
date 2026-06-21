@@ -15,7 +15,7 @@ from rich.table import Table
 
 from genevue import SeqFileNotFoundError, GFF3FileNotFoundError, FormatNotSuitableError
 from genevue import console
-from genevue.utils import header_detector
+from genevue.Utils import header_detector
 
 
 class Genome:

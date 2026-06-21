@@ -2,10 +2,6 @@
 BUSCO - Benchmarking Universal Single-Copy Orthologs.
 
 ------------------------------------------------------------------------------------------------------------------------
-Copyright (c) 2015-2025, Evgeny Zdobnov (ez@ezlab.org). All rights reserved.
-Copyright (c) 2026, HYLi360. All rights reserved.
-
-------------------------------------------------------------------------------------------------------------------------
 This is a port of BUSCO v6.0 to GeneVue.
 This port was undertaken to facilitate integration with other GeneVue components,
 and to avoid over-reliance on the Conda ecosystem.

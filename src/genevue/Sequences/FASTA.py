@@ -5,7 +5,7 @@ from collections import defaultdict
 from genevue import console
 from genevue import setup_rich_logger
 from genevue.External.HMMER3.HMMSearch import HMMSearch
-from genevue.utils import deduplicate
+from genevue.Utils import deduplicate
 
 logger = setup_rich_logger(__name__, console)
 
@@ -16,9 +16,13 @@ class FASTA:
         sequence_path: Path,
     ):
         self.sequence_path = sequence_path
-        self.sequence_idx_path = (
-            self.sequence_path.parent / f"{self.sequence_path.stem}.idx"
-        )
+
+        if self.sequence_path.parent:
+            self.sequence_idx_path = (
+                self.sequence_path.parent / f"{self.sequence_path.stem}.idx"
+            )
+        else:
+            self.sequence_idx_path = f"{self.sequence_idx_path.stem}.idx"
 
         self.target_ls = []
         self.target_count = len(self.target_ls)
@@ -26,9 +30,9 @@ class FASTA:
         self.res_sequence_count = 0
 
     def makeidx(self, idx_path: Optional[Path] = None):
-        counter = 0
-        sub_counter = 1
-
+        """
+        Make a index file for your sequence file (manual or automatic).
+        """
         if idx_path is None:
             self.sequence_idx_path = idx_path
 
@@ -36,22 +40,12 @@ class FASTA:
             open(self.sequence_path, "r") as fin,
             open(self.sequence_idx_path, "w") as fout,
         ):
-            for line_idx, line in enumerate(fin):
+            line = fin.readline()
+            while line:
                 if line.startswith(">"):
                     sequence_label = line.strip().split()[0].replace(">", "")
-                    sequence_line_idx = line_idx
-                    if sub_counter == 1:
-                        fout.write(f"{sequence_label} {sequence_line_idx}")
-                    else:
-                        fout.write(
-                            f" {sub_counter}\n{sequence_label} {sequence_line_idx}"
-                        )
-                        sub_counter = 1
-                    counter += 1
-                else:
-                    sub_counter += 1
-            fout.write(f" {sub_counter}\n")
-        return counter
+                    fout.write(f"{sequence_label}\t{fin.tell() - len(line)}\n")
+                line = fin.readline()
 
     def filter(self, target_path: Path, target_type: str, out_path: Path):
         if target_type not in self.support_target_format():
@@ -72,19 +66,16 @@ class FASTA:
             logger.info(f"Generating index file for {self.sequence_path}.")
             self.makeidx()
 
-        seq_start_end = {}
+        seq_start = {}
 
         with open(Path(self.sequence_idx_path)) as f:
             for line in f:
-                seqid, seqlineidx, seqlinelength = line.strip().split()
-                seq_start_end[seqid] = [
-                    int(seqlineidx),
-                    int(seqlineidx) + int(seqlinelength) - 1,
-                ]
+                seqid, seek_start = line.strip().split()
+                seq_start[seqid] = int(seek_start)
 
         # reordering
         new_target_ls = []
-        for seqid in seq_start_end.keys():
+        for seqid in seq_start.keys():
             if seqid in self.target_ls:
                 new_target_ls.append(seqid)
 
@@ -93,20 +84,17 @@ class FASTA:
                 f"Some sequence id not in sequence file: {', '.join(set(self.target_ls) - set(new_target_ls))}"
             )
 
-        self.target_ls = new_target_ls
+        with open(self.sequence_path, "rb") as fin, open(out_path, "wb") as fout:
+            for seqid in new_target_ls:
+                fin.seek(seq_start[seqid])
 
-        start_end = [seq_start_end[seqid] for seqid in self.target_ls]
+                # first char must be a ">"
+                fout.write(fin.read(1))
 
-        with open(self.sequence_path) as fin, open(out_path, "w") as fout:
-            counter = 0
-            for idx, line in enumerate(fin):
-                if counter >= len(start_end):
-                    break
-                start, end = start_end[counter]
-                if start <= idx <= end:
-                    fout.write(line)
-                if idx == end:
-                    counter += 1
+                char = fin.read(1)
+                while char and char != b">":
+                    fout.write(char)
+                    char = fin.read(1)
 
     @staticmethod
     def support_target_format():

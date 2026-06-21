@@ -1,14 +1,16 @@
-#  Copyright (C) 2025-2026, HYLi360.
-#  Free software distributed under the terms of the GNU GPL-3.0 license,
-#  and comes with ABSOLUTELY NO WARRANTY.
-#  See at <https://www.gnu.org/licenses/gpl-3.0.en.html>
+#  Copyright (c) 2026 HYLi360. All rights reserved.
+#
+#  see LICENSE in /LICENSE
+#  see side-package LICENSEs (if used) in /LICENSE_OF_SIDE_PACKAGES
 
 from __future__ import annotations
-from pathlib import Path
-from genevue.logsystem import LogLevel, setup_rich_logger, _setup_busco_bridge
-from genevue.console import console
 
-__version__ = "0.0.11"
+from pathlib import Path
+
+from genevue.console import console
+from genevue.logsystem import LogLevel, setup_rich_logger, _setup_busco_bridge
+
+__version__ = "0.0.13"
 __nickname__ = "TESTING"
 __full_version__ = f"{__version__} {__nickname__}"
 
@@ -86,8 +88,8 @@ class DirNotEmptyError(BaseException4GeneVue):
 
 class AllFieldsEmptyError(BaseException4GeneVue):
 
-    def __init__(self, fields: list):
-        self.message = f"Fill in at least one field: {', '.join(fields)}"
+    def __init__(self, *fields: str):
+        self.message = f"Fill in at least one field: {', '.join(*fields)}"
 
     def __str__(self):
         return self.message
@@ -95,7 +97,7 @@ class AllFieldsEmptyError(BaseException4GeneVue):
 
 class NothingFoundError(BaseException4GeneVue):
 
-    def __init__(self, message: str):
+    def __init__(self, message: str = ""):
         self.message = message
 
     def __str__(self):
@@ -121,6 +123,7 @@ __all__ = [
     "FileNotExistsError",
     "NotImplementedMethodError",
     "DirNotExistsError",
+    "FormatNotSuitableError",
     "DirNotEmptyError",
     "AllFieldsEmptyError",
     "NothingFoundError",

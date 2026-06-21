@@ -7,7 +7,7 @@ from typing import Optional
 
 import typer
 from genevue.configure import Configure
-from genevue.Remote.NCBI_DATASETS_API import Includes, Datasets4Genome
+from genevue.Remote.NCBIDatasetsAPI import Includes, Datasets4Genome
 from genevue.Remote.Entrez import app_entrez
 
 app_remote = typer.Typer()
