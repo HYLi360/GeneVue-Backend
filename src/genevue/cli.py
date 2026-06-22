@@ -2,12 +2,46 @@ from typing import Callable, Annotated, Literal
 
 import typer
 
-from genevue.Remote import app_remote
+from genevue import console, __full_version__
 from genevue.QC import app_qc
+from genevue.Remote import app_remote
 from genevue.Sequences import app_sequence
+from genevue.Utils import app_file
+from genevue.Taxonomy import app_taxonomy
 from genevue.Utils.Completion import install_completion, uninstall_completion
 from genevue.configure import Configure
-from genevue.Utils import app_file
+from genevue.Diagnosis import Diagnosis
+
+COPYRIGHT = """
+Copyright (c) 2026 HYLi360.
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+In addition to the above, you must comply with the following
+additional terms:
+
+1. Pursuant to Section 7(b), when redistributing this software, you
+   must retain the original authors' copyright notice
+   (COPYRIGHT in /src/genevue/cli.py), and ensure that all users
+   can easily view it.
+2. Pursuant to Section 7(c), adapted versions of this software must
+   use a version number different from that of the original version
+   to distinguish them.
+3. Pursuant to Sections 7(a) and 7(f), the software authors make no
+   warranty regarding the reliability of this program. Redistributors
+   are solely responsible for any warranties they provide.
+"""
 
 
 def _build_config_commands(_: Callable, configure: Configure):
@@ -81,6 +115,8 @@ def _build_app(_: Callable, configure: Configure) -> typer.Typer:
 
     app.add_typer(app_sequence, name="sequence")
 
+    app.add_typer(app_taxonomy, name="taxonomy")
+
     app.add_typer(app_remote, name="remote")
 
     app.add_typer(app_file, name="file")
@@ -101,5 +137,21 @@ def _build_app(_: Callable, configure: Configure) -> typer.Typer:
     )
     def uninstall():
         uninstall_completion()
+
+    @app.command(name="version", help=_("Print genevue version."))
+    def cmd_version():
+        d = Diagnosis()
+
+        console.print(f"\n[green]GeneVue[/green]    [cyan]{__full_version__}[/cyan]\n")
+        console.print("This program based on:")
+        d.export_simple()
+        console.print(
+            "Copyright (c) 2026 HYLi360. All rights reserved.", highlight=False
+        )
+        console.print("For details, please execute 'genevue copyright'.\n")
+
+    @app.command(name="copyright", help=_("Print copyright infomation."))
+    def cmd_copyright():
+        console.print(COPYRIGHT, highlight=False)
 
     return app
