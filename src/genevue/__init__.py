@@ -5,12 +5,14 @@
 
 from __future__ import annotations
 
+import importlib.metadata
 from pathlib import Path
 
 from genevue.console import console
 from genevue.logsystem import LogLevel, setup_rich_logger, _setup_busco_bridge
 
-__version__ = "0.0.13"
+# read version from pyproject.toml directly by importlib.metadata
+__version__ = importlib.metadata.version("genevue")
 __nickname__ = "TESTING"
 __full_version__ = f"{__version__} {__nickname__}"
 
