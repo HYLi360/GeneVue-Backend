@@ -115,5 +115,5 @@ class Diagnosis:
             f"[bold]pandas[/bold]             [cyan]{self.dependences_version["pandas"]}[/cyan]\n"
             f"[bold]Polars[/bold]             [cyan]{self.dependences_version["polars"]}[/cyan]\n"
             f"[bold]SciPy[/bold]              [cyan]{self.dependences_version["scipy"]}[/cyan]\n"
-            f"[bold]BUSCO (integreted)[/bold] [cyan]{self.dependences_version["busco"]}[/cyan]\n",
+            f"[bold]BUSCO (integrated)[/bold] [cyan]{self.dependences_version["busco"]}[/cyan]\n",
         )
