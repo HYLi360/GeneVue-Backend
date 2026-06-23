@@ -209,7 +209,7 @@ class BatchCMDBuilder(CMDBuilder):
             raise IndexError(
                 f"Template {template!r} references slot {max_ref}, but only "
                 f"{len(self.substitute_list)} substitution(s) have been "
-                f"registered 焦炉(valid: 0–{max(0, len(self.substitute_list) - 1)}). "
+                f"registered (valid: 0–{max(0, len(self.substitute_list) - 1)}). "
                 "Call add_substitute_param() first."
             )
 
