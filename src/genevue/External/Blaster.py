@@ -1,20 +1,27 @@
-import os
-from typing import Literal, Optional
-from pathlib import Path
+#  Copyright (c) 2026 HYLi360. All rights reserved.
+#
+#  see license in LICENSE
+#  see side-package licenses in LICENSE_OF_SIDE_PACKAGES
 
-from multiprocessing import cpu_count
 from dataclasses import dataclass
+from multiprocessing import cpu_count
+from pathlib import Path
+from typing import Literal, Optional
 
-from genevue.Utils.FileSystem import iter_path
+from genevue import console, setup_rich_logger
 from genevue.configure import Configure
-from genevue import setup_rich_logger, console
 from genevue.External.CMDBuilder import BatchCMDBuilder
+from genevue.Utils.FileSystem import iter_path
 
 CPU_COUNT = cpu_count()
 
 logger = setup_rich_logger(__name__, console)
 
 configure = Configure()
+
+
+class ConfDIAMOND:
+    pass
 
 
 @dataclass(

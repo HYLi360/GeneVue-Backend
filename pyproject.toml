@@ -1,6 +1,6 @@
 [project]
 name = "GeneVue"
-version = "0.0.13"
+version = "0.0.14"
 description = "Python backend of GeneVue."
 authors = [
     { name = "hyli360", email = "lihuanyu2003@gmail.com" }
@@ -27,6 +27,7 @@ dependencies = [
     "scikit-learn>=1.8.0",
     "scipy>=1.15.3",
     "seaborn>=0.13.2",
+    "tomlkit>=0.15.0",
     "typer>=0.24.1",
 ]
 classifiers = [

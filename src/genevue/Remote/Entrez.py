@@ -1,9 +1,7 @@
-# src/genevue/Remote/Entrez.py
+#  Copyright (c) 2026 HYLi360. All rights reserved.
 #
-# (C) 2026 HYLi360. All rights reserved.
-#
-# see LICENSE in /LICENSE
-# see side-package LICENSEs (if used) in /LICENSE_OF_SIDE_PACKAGES
+#  see LICENSE in /LICENSE
+#  see side-package LICENSEs (if used) in /LICENSE_OF_SIDE_PACKAGES
 
 """
 A simple tool to execute single (or batch) search on NCBI Entrez(R). NCBI Entrez(R) is a service provided by NCBI, which
@@ -156,8 +154,11 @@ class GVEUtilsBatchTaxonomy:
         self._isok = False
 
     def get(self):
-        # filter
+        logger.info(
+            f"Get {len(self.species_name_ls) + len(self.species_id_ls)} names and ids."
+        )
 
+        # filter
         term_list = []
         for species_name in self.species_name_ls:
             term_list.append(f"{species_name}[SCIN]")
@@ -168,39 +169,65 @@ class GVEUtilsBatchTaxonomy:
         # Get ID
         idlist = []
         for i in range(0, len(term_list), 20):
-            stream = BioEntrez.esearch(
-                db="taxonomy", term=" OR ".join(term_list[i : i + 20])
-            )
-            record = BioEntrez.read(stream)
-            idlist.extend(record["IdList"])
+            retry_times = 0
+            while retry_times < 3:
+                logger.info(
+                    f"Check: {i+1: 4}-{min(i+20, len(self.species_name_ls) + len(self.species_id_ls)): 4}"
+                )
+                stream = BioEntrez.esearch(
+                    db="taxonomy", term=" OR ".join(term_list[i : i + 20])
+                )
+                record = BioEntrez.read(stream)
+                if not record:
+                    # not return valid result
+                    logger.warning(f"Connect failed. retry times: {retry_times}/3")
+                    retry_times += 1
+                    continue
+
+                idlist.extend(record["IdList"])
+                break
 
         if not idlist:
             logger.error("Not found any valid species UID")
             return
 
+        logger.info(f"Valid names or ids: {len(idlist)}")
+
         # Get lineage
         for i in range(0, len(idlist), 20):
-            stream = BioEntrez.efetch(
-                db="taxonomy",
-                id=",".join(idlist[i : i + 20]),
-            )
-            lineage_records = BioEntrez.read(stream)
-            for r in lineage_records:
-                if r["Rank"] != "species":
-                    logger.warning(
-                        f"'{r["ScientificName"]}'({r["TaxId"]}) is not a species"
-                    )
+            retry_times = 0
+            while retry_times < 3:
+                logger.info(
+                    f"Fetch taxonomy of species: {i+1: 4}-{min(i+20, len(self.species_name_ls) + len(self.species_id_ls)): 4}"
+                )
+                stream = BioEntrez.efetch(
+                    db="taxonomy",
+                    id=",".join(idlist[i : i + 20]),
+                )
+                lineage_records = BioEntrez.read(stream)
+
+                if not lineage_records:
+                    # not return valid result
+                    logger.warning(f"Connect failed. retry times: {retry_times}/3")
+                    retry_times += 1
                     continue
 
-                lineage_dict = {}
+                for r in lineage_records:
+                    if r["Rank"] != "species":
+                        logger.warning(
+                            f"'{r["ScientificName"]}'({r["TaxId"]}) is a {r["Rank"]}, not a species"
+                        )
 
-                for rank in r["LineageEx"]:
-                    if rank["Rank"] in ["genus", "family", "order", "class"]:
-                        lineage_dict[rank["Rank"]] = rank.get("ScientificName", "?")
+                    lineage_dict = {}
 
-                lineage_dict["species"] = r["ScientificName"]
+                    for rank in r["LineageEx"]:
+                        if rank["Rank"] in ["genus", "family", "order", "class"]:
+                            lineage_dict[rank["Rank"]] = rank.get("ScientificName", "?")
 
-                self.lineage_list.append(lineage_dict)
+                    lineage_dict["species"] = r["ScientificName"]
+
+                    self.lineage_list.append(lineage_dict)
+                break
 
         self._isok = True
 
@@ -217,7 +244,6 @@ class GVEUtilsBatchTaxonomy:
 def cmd_species_lineage(
     species_name: str = typer.Option("", "-n", "--species-name"),
     species_id: int = typer.Option(0, "-i", "--species-id"),
-    species_file: str = typer.Option("", "-f", "--file"),
 ):
     if species_name:
         t = GVEUtilsTaxonomy(species_name=species_name)
@@ -225,19 +251,23 @@ def cmd_species_lineage(
     elif species_id:
         t = GVEUtilsTaxonomy(species_id=species_id)
         t.show()
-    elif species_file:
-        species_name_ls, species_id_ls = [], []
-        with open(species_file) as f:
-            for line in f:
-                line = line.strip()
-                try:
-                    int(line)
-                except ValueError:
-                    species_name_ls.append(line)
-                    continue
-                species_id_ls.append(line)
-        t = GVEUtilsBatchTaxonomy(species_name_ls, species_id_ls)
-        t.to_tsv("res.tsv")
-
     else:
-        raise AllFieldsEmptyError("species_name", "species_id", "species_file")
+        raise AllFieldsEmptyError("species_name", "species_id")
+
+
+@app_entrez.command(name="batch-species-lineage")
+def cmd_batch_species_lineage(name_or_id_path: str, res_output_path: str):
+    species_name_ls, species_id_ls = [], []
+    with open(name_or_id_path) as f:
+        for line in f:
+            line = line.strip()
+            try:
+                int(line)
+            except ValueError:
+                species_name_ls.append(line)
+                continue
+            species_id_ls.append(line)
+    t = GVEUtilsBatchTaxonomy(species_name_ls, species_id_ls)
+    logger.info("Start searching.")
+    t.get()
+    t.to_tsv(res_output_path)

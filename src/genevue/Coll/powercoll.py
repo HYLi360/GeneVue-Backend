@@ -5,7 +5,7 @@
 
 from dataclasses import field
 from pathlib import Path
-from typing import Literal, Tuple, Hashable, List, cast, Any
+from typing import Any, Hashable, List, Literal, Tuple, cast
 
 import numpy as np
 import pandas as pd
@@ -82,10 +82,10 @@ class Collinearity:
         self.gap_penalty: float | int = -1
         self.pvalue_min: float | int = 1
 
-        self.loc1: NDArray = np.array([])
-        self.loc2: NDArray = np.array([])
-        self.gradings: NDArray = np.array([])
-        self.resls: List[CollRes] = field(default_factory=list)
+        self._loc1: NDArray = np.array([])
+        self._loc2: NDArray = np.array([])
+        self._gradings: NDArray = np.array([])
+        self._resls: List[CollRes] = field(default_factory=list)
 
     def _deal_blast_for_chromosomes(
         self,
@@ -128,7 +128,7 @@ class Collinearity:
         # Define the blue number as the sum of rednum and the predefined constant
         bluenum = 4 + rednum
 
-        # We do these steps to give grades by every pairs.
+        # We do these steps to give grades by every pair.
         # 1. Rip gene1 and bitscore columns and sort them.
         #    ! We keep the index (Not using reset_index()) to ensure we can restore the order
         rank = blast.loc[:, ["gene1", "bitscore"]].sort_values(
@@ -228,16 +228,16 @@ class Collinearity:
     ) -> CollRes:
         # Forward and Backward scaning.
         score1, usedtimes1, parent1 = self._score_matrix(
-            self.loc1[index], self.loc2[index], self.gradings[index], "forward"
+            self._loc1[index], self._loc2[index], self._gradings[index], "forward"
         )
         score2, usedtimes2, parent2 = self._score_matrix(
-            self.loc1[index], self.loc2[index], self.gradings[index], "backward"
+            self._loc1[index], self._loc2[index], self._gradings[index], "backward"
         )
 
         # Collect result.
         res = self._max_path(
-            self.loc1[index],
-            self.loc2[index],
+            self._loc1[index],
+            self._loc2[index],
             score1,
             score2,
             usedtimes1,
@@ -373,8 +373,9 @@ class Collinearity:
         times = np.ones(n, dtype=np.int32)
 
         while True:
-            cand1, cand2 = np.flatnonzero(usedtimes1 > 0), np.flatnonzero(
-                usedtimes2 > 0
+            cand1, cand2 = (
+                np.flatnonzero(usedtimes1 > 0),
+                np.flatnonzero(usedtimes2 > 0),
             )
             if (
                 (len(cand1) < self.over_gap)

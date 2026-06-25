@@ -1,11 +1,12 @@
 import gzip
+from os import PathLike
 from pathlib import Path
 from types import NoneType
-from typing import Optional, List
+from typing import List, Optional
 
 import bgzip
 
-from genevue import setup_rich_logger, console
+from genevue import console, setup_rich_logger
 
 logger = setup_rich_logger(__name__, console)
 
@@ -90,7 +91,7 @@ def default_filename(
     for path in file_name_ls:
         new_paths.append(
             path.parent
-            / f"{prefix}{path.stem}{suffix}{f".{exname}" if exname and path.suffix else path.suffix}"
+            / f"{prefix}{path.stem}{suffix}{f'.{exname}' if exname and path.suffix else path.suffix}"
         )
     return new_paths
 
@@ -108,7 +109,7 @@ def pair_filename(
     exname = exname.replace(".", "")
 
     output_file_name_ls = [
-        output_dir / f"{prefix}{file_name}{suffix}{f".{exname}" if exname else ""}"
+        output_dir / f"{prefix}{file_name}{suffix}{f'.{exname}' if exname else ''}"
         for file_name in in_file_name_stem_ls
     ]
     output_file_name_ls.sort()

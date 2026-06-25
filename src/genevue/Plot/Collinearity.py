@@ -1,20 +1,18 @@
+#  Copyright (c) 2026 HYLi360. All rights reserved.
+#
+#  see license in LICENSE
+#  see side-package licenses in LICENSE_OF_SIDE_PACKAGES
+
 """
-src/genevue/plot/Collinearity.py
-
-(C) 2026 HYLi360. All rights reserved.
-
-see LICENSE in /LICENSE
-see side-package LICENSEs (if used) in /LICENSE_OF_SIDE_PACKAGES
-
---------------------
 A more powerful collinearity plot tool.
 """
 
-from typing import Optional, Literal, Iterable, Tuple, List, Dict
+from typing import Dict, Iterable, List, Literal, Optional, Tuple
 
 import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 import pandas as pd
+from matplotlib.lines import Line2D
 from matplotlib.path import Path as MplPath
 from matplotlib.text import Text
 
@@ -235,11 +233,13 @@ class MacroCollPlot:
             space_end2.append(start2[-1] + length2[-1] + space_len2 * sf2)
 
         self.sf_top, self.sf_bot = sf1, sf2
-        self.chrposls_top, self.chrposls_bot = tuple(
-            zip(start1, length1, self.chr_namels_top)
-        ), tuple(zip(start2, length2, self.chr_namels_bot))
-        self.startd_top, self.startd_bot = dict(zip(self.chr_namels_top, start1)), dict(
-            zip(self.chr_namels_bot, start2)
+        self.chrposls_top, self.chrposls_bot = (
+            tuple(zip(start1, length1, self.chr_namels_top)),
+            tuple(zip(start2, length2, self.chr_namels_bot)),
+        )
+        self.startd_top, self.startd_bot = (
+            dict(zip(self.chr_namels_top, start1)),
+            dict(zip(self.chr_namels_bot, start2)),
         )
 
     def _collbox_init(self):
@@ -264,12 +264,13 @@ class MacroCollPlotMultiple:
         chr_x: Tuple[float | int, float | int] = (0.2, 0.9),
         collbox_style: Literal["polygon", "bezier"] = "bezier",
     ):
-        self.chr_spacing_factor = chr_spacing_factor
-        self.chr_x = chr_x
-        self.collbox_style = collbox_style
+        self.chr_spacing_factor: float | int = chr_spacing_factor
+        self.chr_x: Tuple[float | int, float | int] = chr_x
+        self.collbox_style: Literal["polygon", "bezier"] = collbox_style
 
         # internal attributes
         self._scale_factor = {}
+        self._chrom_y = {}
         self._chr_attributes = pd.DataFrame()
         self._coll_attributes = pd.DataFrame()
         self._line_attributes = pd.DataFrame()
@@ -281,29 +282,22 @@ class MacroCollPlotMultiple:
         self,
         genome_name: str,
         genome_features: pd.DataFrame,
-        chromosome_y: float | int,
+        chrom_y: float | int,
         color,
-        allow_chroms: Optional[List[str]] = None,
-        rename_chroms: Optional[Dict[str, str]] = None,
+        chrom_filter: Optional[List[str]] = None,
+        chrom_alias: Optional[Dict[str, str]] = None,
     ):
-        if rename_chroms is not None:
-            rename_chroms_dict = rename_chroms
-        else:
-            rename_chroms_dict = {}
+        if chrom_alias is None:
+            chrom_alias = {}
 
         # get chromosome name and length from any type of genome features table.
         buffer = []
         chr_length_dict = genome_features.groupby("seqid")["end"].max().to_dict()
 
-        if allow_chroms is not None:
-            chridls = [
-                chro
-                for chro in allow_chroms
-                if chro in genome_features["seqid"].unique()
-            ]
+        chridls = genome_features["seqid"].unique().tolist()
 
-        else:
-            chridls = genome_features["seqid"].unique().tolist()
+        if chrom_filter:
+            chridls = [chrid for chrid in chridls if chrid in chrom_filter]
 
         scale_factor = (self.chr_x[1] - self.chr_x[0]) / (
             sum([chr_length_dict[chro] for chro in chridls])
@@ -316,15 +310,17 @@ class MacroCollPlotMultiple:
             len(chridls) - 1
         )
 
+        self._chrom_y[genome_name] = chrom_y
+
         s = self.chr_x[0]
 
         for chrid in chridls:
             buffer.append(
                 {
                     "genome_name": genome_name,
-                    "chr_name": rename_chroms_dict.get(chrid, chrid),
-                    "y": (1 - chromosome_y),
-                    "factor": scale_factor,
+                    "chr_name": chrid,
+                    "chr_alias": chrom_alias.get(chrid, chrid),
+                    "y": (1 - chrom_y),
                     "start": s,
                     "end": s + chr_length_dict[chrid] * scale_factor,
                     "color": color,
@@ -366,7 +362,6 @@ class MacroCollPlotMultiple:
             loc2startbase,
             loc2endbase,
         ) in anchor.iterrows():
-
             mask1 = (self._chr_attributes["genome_name"] == genome_name1) & (
                 self._chr_attributes["chr_name"] == chr1
             )
@@ -404,6 +399,7 @@ class MacroCollPlotMultiple:
 
     def add_line(self, genome_name1, chr1, point1, genome_name2, chr2, point2, color):
         factor1 = self._scale_factor[genome_name1]
+        y1 = self._chrom_y[genome_name1]
         start1 = (
             self._chr_attributes[
                 (self._chr_attributes["genome_name"] == genome_name1)
@@ -413,6 +409,7 @@ class MacroCollPlotMultiple:
             .item()
         )
         factor2 = self._scale_factor[genome_name2]
+        y2 = self._chrom_y[genome_name2]
         start2 = (
             self._chr_attributes[
                 (self._chr_attributes["genome_name"] == genome_name2)
@@ -428,19 +425,14 @@ class MacroCollPlotMultiple:
                 pd.DataFrame(
                     {
                         "genome_name1": genome_name1,
-                        "chr1": chr1,
-                        "point1": start1 + point1 * factor1,
+                        "start": (start1 + point1 * factor1, y1),
                         "genome_name2": genome_name2,
-                        "chr2": chr2,
-                        "point2": start2 + point2 * factor2,
+                        "end": (start2 + point2 * factor2, y2),
                         "color": color,
                     }
                 ),
             ],
         )
-
-    def reorder_chromosome(self):
-        pass
 
     def draw(self):
         self._chro_init()
@@ -459,13 +451,13 @@ class MacroCollPlotMultiple:
         for _, (
             gname,
             cname,
+            calias,
             y,
-            factor,
             start,
             end,
             color,
         ) in self._chr_attributes.iterrows():
-            self.ax = _draw_a_chromosome(self.ax, start, end, y, cname, color)
+            self.ax = _draw_a_chromosome(self.ax, start, end, y, calias, color)
 
     def _coll_init(self):
         for _, (
@@ -491,7 +483,10 @@ class MacroCollPlotMultiple:
                 )
 
     def _line_init(self):
-        pass
+        for _, (gname1, start, gname2, end, color) in self._line_attributes.iterrows():
+            self.ax.add_line(
+                Line2D([start[0], end[0]], [start[1], end[1]], linewidth=2, color=color)
+            )
 
 
 class MicroCollPlot:

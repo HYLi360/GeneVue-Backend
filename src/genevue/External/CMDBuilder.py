@@ -7,9 +7,9 @@ from functools import partial
 from itertools import product
 from multiprocessing.pool import Pool
 from pathlib import Path
-from typing import Any, Literal, List, Optional
+from typing import Any, List, Literal, Optional
 
-from genevue import setup_rich_logger, console
+from genevue import console, setup_rich_logger
 
 logger = setup_rich_logger(__name__, console)
 
@@ -41,7 +41,7 @@ def inc_progress(*args):
 
     if completed % 10 == 0:
         logger.info(
-            f"Progress: {completed} / {tasks_count} ({completed/tasks_count * 100:.2f}%)"
+            f"Progress: {completed} / {tasks_count} ({completed / tasks_count * 100:.2f}%)"
         )
 
 
@@ -165,6 +165,7 @@ class BatchCMDBuilder(CMDBuilder):
         Python's native format-field syntax to extract components::
 
             >>> from pathlib import Path
+            >>> cmd = BatchCMDBuilder(program_name="example")
             >>> in_files = [Path(\"data/GCF_001.dmnd\"), Path(\"data/GCF_002.dmnd\")]
             >>> cmd.add_substitute_param(\"--in\", in_files)        # slot 0
             >>> cmd.add_substitute_template(\"--out\", \"{0.stem}.out\")  # just the stem
@@ -254,6 +255,9 @@ class BatchCMDBuilder(CMDBuilder):
 
         return cmds
 
+    def __len__(self):
+        return len(self.cmd)
+
     def run(
         self,
         *args,
@@ -279,9 +283,9 @@ class BatchCMDBuilder(CMDBuilder):
                     results = [ar.get() for ar in async_results]
                     pool.close()
                     pool.join()
-                    logger.info(f"Process completed.")
+                    logger.info("Process completed.")
         else:
-            logger.info(f"Dry-run. These commands will be executed:")
+            logger.info("Dry-run. These commands will be executed:")
             for cmd in self._cmds:
                 logger.info(f"{' '.join(cmd)}")
                 inc_progress()

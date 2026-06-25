@@ -10,7 +10,7 @@ a very simple tool to build newick tree.
 
 from __future__ import annotations
 
-from typing import Dict
+from typing import Dict, cast
 
 import newick
 import pandas as pd
@@ -63,7 +63,7 @@ class SimpleTree:
             current = self.tree
 
             for level, name in series.items():
-                current = current.get_or_create_child(str(name), str(level))
+                current = current.get_or_create_child(cast(str, name), cast(str, level))
 
     def to_newick(self):
         return self.tree.to_newick()

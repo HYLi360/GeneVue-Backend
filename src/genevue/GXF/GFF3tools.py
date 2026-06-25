@@ -13,14 +13,14 @@ A series of GFF3-handle tools. Mainly powered by Polars, a high-perference DataF
 import gzip
 import re
 from pathlib import Path
-from typing import List, Dict, Optional, Any, Tuple, Literal
+from typing import Any, Dict, List, Literal, Optional, Tuple
 from urllib.parse import unquote as url_unquote
 
 import polars as pl
 import rich
 from rich.table import Table
 
-from genevue import setup_rich_logger, console, FormatNotSuitableError
+from genevue import FormatNotSuitableError, console, setup_rich_logger
 from genevue.Utils.FileSystem import check_filetype
 
 logger = setup_rich_logger(__name__, console)
@@ -141,17 +141,17 @@ class BlazingGFF3:
             f"Small seqs count\n(features less than {features_count // 20}): {small_count}"
         )
         rich.print(
-            f"Genes count:                 {self.data.filter(pl.col("type") == "gene").shape[0]}"
+            f"Genes count:                 {self.data.filter(pl.col('type') == 'gene').shape[0]}"
         )
         rich.print(
-            f"mRNAs count:                 {self.data.filter(pl.col("type") == "mRNA").shape[0]}"
+            f"mRNAs count:                 {self.data.filter(pl.col('type') == 'mRNA').shape[0]}"
         )
         rich.print(
-            f"CDSs count:                  {self.data.filter(pl.col("type") == "CDS").shape[0]}"
+            f"CDSs count:                  {self.data.filter(pl.col('type') == 'CDS').shape[0]}"
         )
         rich.print(f"Total eatures count:         {features_count}")
 
-        rich.print(f"Source and type of features:")
+        rich.print("Source and type of features:")
         source_and_type_df = (
             self.data.group_by(["source", "type"])
             .agg(pl.count().alias("counts"))
@@ -234,7 +234,7 @@ class BlazingGFF3:
 
     # === Range Search ===
     def search_region(self, seqid: str, start: int = 0, end: int = -1):
-        if int == -1:
+        if end == -1:
             return self.data.filter(pl.col("seqid") == seqid)
 
         return self.data.filter(
