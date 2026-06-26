@@ -1,3 +1,8 @@
+#  Copyright (c) 2026 HYLi360. All rights reserved.
+#
+#  see license in LICENSE
+#  see side-package licenses in LICENSE_OF_SIDE_PACKAGES
+
 """
 A protein phys/chem-properties predict tool, based on ExPASy ProtParam and Biopython.
 """
@@ -7,7 +12,7 @@ from Bio.SeqRecord import SeqRecord
 from Bio.SeqUtils import molecular_weight
 from Bio.SeqUtils.ProtParam import ProteinAnalysis
 
-from genevue import setup_rich_logger, console
+from genevue import console, setup_rich_logger
 from genevue.Constants.AminoAcids import molecular_formula_protein
 from genevue.Sequences import remove_any_spacechar
 
@@ -117,8 +122,7 @@ class ProtParam:
     # Export the report
     @property
     def report(self) -> str:
-        return f"""ProtParam result.
-
+        return f"""
 Sequence ID:           {self.seqid}
 Sequence description:  {self.description}
 
@@ -141,11 +145,10 @@ Extinction coefficients:
 Instability Index:      {self.instability_index:.2f} ({"Stable" if self.is_stable_based_on_ii else "Unstable"})
 
 GRand AVerage of hYdropathicity (GRAVY), based on Kyte-Doolittle scale: {self.gravy_kd:.2f}
-
 """
 
     def __str__(self):
-        return self.report
+        return f"[START]\n{self.report}\n[END]"
 
 
 class ProtParamBatch:
@@ -153,3 +156,6 @@ class ProtParamBatch:
         self.seq_list = seq_list
 
         self.protparam_res = [ProtParam(seq) for seq in seq_list]
+
+    def report(self):
+        pass

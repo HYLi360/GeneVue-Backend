@@ -1,7 +1,7 @@
-# Copyright (C) 2025-2026, HYLi360.
-# Free software distributed under the terms of the GNU GPL-3.0 license,
-# and comes with ABSOLUTELY NO WARRANTY.
-# See at <https://www.gnu.org/licenses/gpl-3.0.en.html>
+#  Copyright (c) 2026 HYLi360. All rights reserved.
+#
+#  see license in LICENSE
+#  see side-package licenses in LICENSE_OF_SIDE_PACKAGES
 
 """
 A basic framework for statistical computation and analysis. Its current functionality involves performing a series of
@@ -15,13 +15,13 @@ also be visualized by calling the `show()` function.
 """
 
 import numpy as np
-from scipy import stats
+from rich import box
 from rich.table import Table
 from rich.text import Text
-from rich import box
+from scipy import stats
 
-from genevue.Statistic import SingleDiscriptive, DoubleDiscriptive, _num_formatter
 from genevue import console
+from genevue.Statistic import DoubleDiscriptive, SingleDiscriptive, _num_formatter
 
 
 class TTest1SMP(SingleDiscriptive):
@@ -82,8 +82,8 @@ class TTest1SMP(SingleDiscriptive):
             f"{self.both:.3f}",
             f"{_num_formatter([self.mean])}",
             f"{_num_formatter([self.mu])}",
-            f"{_num_formatter([self.mean-self.mu])}",
-            f"[{self.mean-self.mu-self.ci95:.3f}, {self.mean-self.mu+self.ci95:.3f}]",
+            f"{_num_formatter([self.mean - self.mu])}",
+            f"[{self.mean - self.mu - self.ci95:.3f}, {self.mean - self.mu + self.ci95:.3f}]",
         )
         table_ttest.box = box.SIMPLE_HEAVY
         console.print(table_ttest)
@@ -129,20 +129,20 @@ class TTestIndeSMP(DoubleDiscriptive):
             f"SST    = {self.sst1: .2f}, {self.sst2: .2f}\n"
             f"SD     = {self.std1: .2f}, {self.std2: .2f}\n"
             f"SE     = {self.ser1: .2f}, {self.ser2: .2f}\n"
-            f"CI95   =[{self.mean1-self.ci95_1: .2f}, {self.mean1+self.ci95_1: .2f}], "
-            f"[{self.mean2-self.ci95_2: .2f}, {self.mean2+self.ci95_2: .2f}]\n"
+            f"CI95   =[{self.mean1 - self.ci95_1: .2f}, {self.mean1 + self.ci95_1: .2f}], "
+            f"[{self.mean2 - self.ci95_2: .2f}, {self.mean2 + self.ci95_2: .2f}]\n"
             "\n"
             "+------------------------------------------------------------+\n"
             "| Normality Hypothesis Test (based on Shapiro-Wilk's method) |\n"
             "+------------------------------------------------------------+\n"
-            f"W1 = {self.shapiro1.statistic:.3} (p-value = {self.shapiro1.pvalue:.3}){" (!)" if self.shapiro1.pvalue < 0.1 else ""}\n"
-            f"W2 = {self.shapiro2.statistic:.3} (p-value = {self.shapiro2.pvalue:.3}){" (!)" if self.shapiro2.pvalue < 0.1 else ""}\n"
+            f"W1 = {self.shapiro1.statistic:.3} (p-value = {self.shapiro1.pvalue:.3}){' (!)' if self.shapiro1.pvalue < 0.1 else ''}\n"
+            f"W2 = {self.shapiro2.statistic:.3} (p-value = {self.shapiro2.pvalue:.3}){' (!)' if self.shapiro2.pvalue < 0.1 else ''}\n"
             "* The small p-value suggests a violation of the assumption of normality.\n"
             "\n"
             "+---------------------------------------------------------+\n"
             "| Homogeneity of Variance Test (based on Levene's method) |\n"
             "+---------------------------------------------------------+\n"
-            f"L = {self.levene.statistic:.3} (p-value = {self.levene.pvalue:.3}){" (!)" if self.levene.pvalue < 0.1 else ""}\n"
+            f"L = {self.levene.statistic:.3} (p-value = {self.levene.pvalue:.3}){' (!)' if self.levene.pvalue < 0.1 else ''}\n"
             "* The small p-value suggests that the populations do not have equal variances.\n"
             "\n"
             "+----------------------------+\n"
@@ -154,13 +154,13 @@ class TTestIndeSMP(DoubleDiscriptive):
             f"                for right = {self.right:.3f} (mean2>mean1)\n"
             f"                for  both = {self.both:.3f} (mean2!=mean1)\n"
             f"            Mean-diff SER = {self.ser:.3f}\n"
-            f"         95% Mean-diff CI = [{self.mean2-self.mean1-self.ci95:.3f}, {self.mean2-self.mean1:.3f}, "
-            f"{self.mean2-self.mean1+self.ci95:.3f}]\n"
+            f"         95% Mean-diff CI = [{self.mean2 - self.mean1 - self.ci95:.3f}, {self.mean2 - self.mean1:.3f}, "
+            f"{self.mean2 - self.mean1 + self.ci95:.3f}]\n"
             f"Welth's t-Test:        df = {self.welth_t.df:.3f}\n"
             f"              t Statistic = {self.welth_t.statistic:.3f}\n"
             f"        p-value for  left = {self.welth_left:.3f} (mean2<mean1)\n"
             f"                for right = {self.welth_right:.3f} (mean2>mean1)\n"
             f"                for  both = {self.welth_both:.3f} (mean2!=mean1)\n"
-            f"         95% Mean-diff CI = [{self.mean2-self.mean1-self.welth_ci95:.3f}, {self.mean2-self.mean1:.3f}, "
-            f"{self.mean2-self.mean1+self.welth_ci95:.3f}]\n"
+            f"         95% Mean-diff CI = [{self.mean2 - self.mean1 - self.welth_ci95:.3f}, {self.mean2 - self.mean1:.3f}, "
+            f"{self.mean2 - self.mean1 + self.welth_ci95:.3f}]\n"
         )

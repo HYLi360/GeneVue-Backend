@@ -299,9 +299,10 @@ class MacroCollPlotMultiple:
         if chrom_filter:
             chridls = [chrid for chrid in chridls if chrid in chrom_filter]
 
-        scale_factor = (self.chr_x[1] - self.chr_x[0]) / (
-            sum([chr_length_dict[chro] for chro in chridls])
-            * (1 + self.chr_spacing_factor)
+        scale_factor = (
+            (self.chr_x[1] - self.chr_x[0])
+            * (1 - self.chr_spacing_factor)
+            / (sum([chr_length_dict[chro] for chro in chridls]))
         )
 
         self._scale_factor[genome_name] = scale_factor
@@ -424,12 +425,14 @@ class MacroCollPlotMultiple:
                 self._line_attributes,
                 pd.DataFrame(
                     {
-                        "genome_name1": genome_name1,
-                        "start": (start1 + point1 * factor1, y1),
-                        "genome_name2": genome_name2,
-                        "end": (start2 + point2 * factor2, y2),
-                        "color": color,
-                    }
+                        "genome_name1": [genome_name1],
+                        "x1": [start1 + point1 * factor1],
+                        "y1": [y1],
+                        "genome_name2": [genome_name2],
+                        "x2": [start2 + point2 * factor2],
+                        "y2": [y2],
+                        "color": [color],
+                    },
                 ),
             ],
         )
@@ -483,10 +486,16 @@ class MacroCollPlotMultiple:
                 )
 
     def _line_init(self):
-        for _, (gname1, start, gname2, end, color) in self._line_attributes.iterrows():
-            self.ax.add_line(
-                Line2D([start[0], end[0]], [start[1], end[1]], linewidth=2, color=color)
-            )
+        for _, (
+            gname1,
+            x1,
+            y1,
+            gname2,
+            x2,
+            y2,
+            color,
+        ) in self._line_attributes.iterrows():
+            self.ax.add_line(Line2D([x1, x2], [y1, y2], linewidth=2, color=color))
 
 
 class MicroCollPlot:

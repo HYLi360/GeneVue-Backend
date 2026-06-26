@@ -1,3 +1,17 @@
+#  Copyright (c) 2026 HYLi360. All rights reserved.
+#
+#  see license in LICENSE
+#  see side-package licenses in LICENSE_OF_SIDE_PACKAGES
+
+"""
+A simple wrapper to use 'DIAMOND' in your code with IDE hints.
+
+'DIAMOND' is a high-performance bioinformatics software, designed for large-scale alignment
+of proteins, or translated DNA sequences.
+
+<https://github.com/bbuchfink/diamond>
+"""
+
 from pathlib import Path
 from typing import List, Literal
 
@@ -56,49 +70,51 @@ class ConfDiamond:
         pass
 
 
-def blastp(
-    query_seq_path_ls: List[str | Path],
-    db_seq_path_ls: List[str | Path],
-    res_path: str | Path,
-    res_template: str,
-    outfmt: str,
-    dry_run: bool,
-    max_evalue: float | int = 1e-5,
-    max_tgt_seqs: int = 0,
-    threads: int = 4,
-    processes: int = 1,
-    verbose: bool = False,
-    quiet: bool = True,
-    sensitivity: Literal[
-        "faster",
-        "fast",
-        "mid-sensitive",
-        "sensitive",
-        "more-sensitive",
-        "very-sensitive",
-        "ultra-sensitive",
-    ] = "ultra-sensitive",
-):
-    cmd = BatchCMDBuilder("diamond", configure.get_program_path("diamond"), "cross")
+class Diamond:
+    @staticmethod
+    def blastp(
+        query_seq_path_ls: List[str | Path],
+        db_seq_path_ls: List[str | Path],
+        res_path: str | Path,
+        res_template: str,
+        outfmt: str,
+        dry_run: bool,
+        max_evalue: float | int = 1e-5,
+        max_tgt_seqs: int = 0,
+        threads: int = 4,
+        processes: int = 1,
+        verbose: bool = False,
+        quiet: bool = True,
+        sensitivity: Literal[
+            "faster",
+            "fast",
+            "mid-sensitive",
+            "sensitive",
+            "more-sensitive",
+            "very-sensitive",
+            "ultra-sensitive",
+        ] = "ultra-sensitive",
+    ):
+        cmd = BatchCMDBuilder("diamond", configure.get_program_path("diamond"), "cross")
 
-    query_seq_path_ls = [Path(p) for p in query_seq_path_ls]
-    db_seq_path_ls = [Path(p) for p in db_seq_path_ls]
-    res_path = Path(res_path)
+        query_seq_path_ls = [Path(p) for p in query_seq_path_ls]
+        db_seq_path_ls = [Path(p) for p in db_seq_path_ls]
+        res_path = Path(res_path)
 
-    cmd.add_flag("blastp")
+        cmd.add_flag("blastp")
 
-    cmd.add_substitute_param("--query", query_seq_path_ls)
-    cmd.add_substitute_param("--db", db_seq_path_ls)
-    cmd.add_substitute_template("--out", "/".join([f"{res_path}", res_template]))
-    cmd.add_param("--outfmt", outfmt)
-    cmd.add_param("--evalue", max_evalue)
+        cmd.add_substitute_param("--query", query_seq_path_ls)
+        cmd.add_substitute_param("--db", db_seq_path_ls)
+        cmd.add_substitute_template("--out", "/".join([f"{res_path}", res_template]))
+        cmd.add_param("--outfmt", outfmt)
+        cmd.add_param("--evalue", max_evalue)
 
-    if max(max_tgt_seqs, 0):
-        cmd.add_param("--max_target_seqs", max_tgt_seqs)
+        if max(max_tgt_seqs, 0):
+            cmd.add_param("--max_target_seqs", max_tgt_seqs)
 
-    cmd.add_param("--threads", threads)
-    cmd.add_flag("--verbose", verbose)
-    cmd.add_flag("--quiet", quiet)
-    cmd.add_flag(f"--{sensitivity}")
+        cmd.add_param("--threads", threads)
+        cmd.add_flag("--verbose", verbose)
+        cmd.add_flag("--quiet", quiet)
+        cmd.add_flag(f"--{sensitivity}")
 
-    cmd.run(processes=processes, dry_run=dry_run)
+        cmd.run(processes=processes, dry_run=dry_run)

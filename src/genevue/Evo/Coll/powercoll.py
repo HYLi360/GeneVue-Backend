@@ -1,7 +1,7 @@
 #  Copyright (c) 2026 HYLi360. All rights reserved.
 #
-#  see LICENSE in /LICENSE
-#  see side-package LICENSEs (if used) in /LICENSE_OF_SIDE_PACKAGES
+#  see license in LICENSE
+#  see side-package licenses in LICENSE_OF_SIDE_PACKAGES
 
 from dataclasses import field
 from pathlib import Path
@@ -82,10 +82,10 @@ class Collinearity:
         self.gap_penalty: float | int = -1
         self.pvalue_min: float | int = 1
 
-        self._loc1: NDArray = np.array([])
-        self._loc2: NDArray = np.array([])
-        self._gradings: NDArray = np.array([])
-        self._resls: List[CollRes] = field(default_factory=list)
+        self.loc1: NDArray = np.array([])
+        self.loc2: NDArray = np.array([])
+        self.gradings: NDArray = np.array([])
+        self.resls: List[CollRes] = field(default_factory=list)
 
     def _deal_blast_for_chromosomes(
         self,
@@ -226,18 +226,18 @@ class Collinearity:
         chr_tuple: tuple[Hashable, Hashable],
         index: NDArray[np.uint32],
     ) -> CollRes:
-        # Forward and Backward scaning.
+        # Forward and Backward scan.
         score1, usedtimes1, parent1 = self._score_matrix(
-            self._loc1[index], self._loc2[index], self._gradings[index], "forward"
+            self.loc1[index], self.loc2[index], self.gradings[index], "forward"
         )
         score2, usedtimes2, parent2 = self._score_matrix(
-            self._loc1[index], self._loc2[index], self._gradings[index], "backward"
+            self.loc1[index], self.loc2[index], self.gradings[index], "backward"
         )
 
         # Collect result.
         res = self._max_path(
-            self._loc1[index],
-            self._loc2[index],
+            self.loc1[index],
+            self.loc2[index],
             score1,
             score2,
             usedtimes1,
@@ -527,7 +527,7 @@ class Collinearity:
             / l2
         )
 
-    def export(self, collfile_path: Path, anchor_path: Path) -> None:
+    def export(self, base_name: str, out_folder: str | Path = ".") -> None:
         # Target format:
         # Alignment 1: score=100 pvalue=0.03 N=3 1&1 minus
         # s1g1 1 s2g1 1 1
@@ -536,6 +536,10 @@ class Collinearity:
 
         # block_counter
         counter = 1
+
+        # File name
+        collfile_path = Path(out_folder) / f"{base_name}.coll"
+        anchor_path = Path(out_folder) / f"{base_name}.anchor"
 
         # Start!
         fout = open(collfile_path, "w")

@@ -110,10 +110,10 @@ class Diagnosis:
             f"[bold]Operator System[/bold]    [cyan]{self.os_info}[/cyan]\n"
             f"[bold]Python[/bold]             [cyan]{self.python_version}[/cyan]\n"
             f"                   on {self.python_executable_path}\n"
-            f"[bold]Biopython[/bold]          [cyan]{self.dependences_version["biopython"]}[/cyan]\n"
-            f"[bold]NumPy[/bold]              [cyan]{self.dependences_version["numpy"]}[/cyan]\n"
-            f"[bold]pandas[/bold]             [cyan]{self.dependences_version["pandas"]}[/cyan]\n"
-            f"[bold]Polars[/bold]             [cyan]{self.dependences_version["polars"]}[/cyan]\n"
-            f"[bold]SciPy[/bold]              [cyan]{self.dependences_version["scipy"]}[/cyan]\n"
-            f"[bold]BUSCO (integrated)[/bold] [cyan]{self.dependences_version["busco"]}[/cyan]\n",
+            f"[bold]Biopython[/bold]          [cyan]{self.dependences_version['biopython']}[/cyan]\n"
+            f"[bold]NumPy[/bold]              [cyan]{self.dependences_version['numpy']}[/cyan]\n"
+            f"[bold]pandas[/bold]             [cyan]{self.dependences_version['pandas']}[/cyan]\n"
+            f"[bold]Polars[/bold]             [cyan]{self.dependences_version['polars']}[/cyan]\n"
+            f"[bold]SciPy[/bold]              [cyan]{self.dependences_version['scipy']}[/cyan]\n"
+            f"[bold]BUSCO (integrated)[/bold] [cyan]{self.dependences_version['busco']}[/cyan]\n",
         )

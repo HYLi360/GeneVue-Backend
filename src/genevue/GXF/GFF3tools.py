@@ -1,12 +1,10 @@
+#  Copyright (c) 2026 HYLi360. All rights reserved.
+#
+#  see license in LICENSE
+#  see side-package licenses in LICENSE_OF_SIDE_PACKAGES
+
+
 """
-src/genevue/plot/CollScatPlot.py
-
-(C) 2026 HYLi360. All rights reserved.
-
-see LICENSE in LICENSE
-see side-package LICENSEs (if used) in LICENSE_OF_SIDE_PACKAGES
-
---------------------
 A series of GFF3-handle tools. Mainly powered by Polars, a high-perference DataFrame library.
 """
 
@@ -165,7 +163,7 @@ class BlazingGFF3:
         source_and_type_table.add_column("Percent", justify="right", no_wrap=True)
         for _source, _type, _counts in source_and_type_ls:
             source_and_type_table.add_row(
-                _source, _type, str(_counts), f"{_counts/features_count*100: 3.2f}%"
+                _source, _type, str(_counts), f"{_counts / features_count * 100: 3.2f}%"
             )
         rich.print(source_and_type_table)
 
@@ -266,7 +264,7 @@ class BlazingGFF3:
         """
         Get children features of this feature.
 
-        Return a empty pl.DataFrame if
+        Return an empty pl.DataFrame if
           - feature name doesn't appear in gff3, or
           - this feature has no children (a leaf feature).
 
@@ -543,24 +541,3 @@ class BlazingGFF3:
             df.to_pandas().to_csv(bed_path, sep="\t", index=False, header=False)
 
         return df
-
-    @property
-    def sources(self) -> List[str]:
-        if self.data.shape[0] == 0:
-            return []
-        else:
-            return self.data.select("source").to_series().unique().to_list()
-
-    @property
-    def types(self) -> List[str]:
-        if self.data.shape[0] == 0:
-            return []
-        else:
-            return self.data.select("type").to_series().unique().to_list()
-
-    @property
-    def sources_and_types(self) -> List[Tuple[str, str]]:
-        if self.data.shape[0] == 0:
-            return []
-        else:
-            return list(self.data.select(["source", "type"]).unique().iter_rows())

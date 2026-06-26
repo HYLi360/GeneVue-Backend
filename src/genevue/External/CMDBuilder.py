@@ -1,3 +1,8 @@
+#  Copyright (c) 2026 HYLi360. All rights reserved.
+#
+#  see license in LICENSE
+#  see side-package licenses in LICENSE_OF_SIDE_PACKAGES
+
 import os
 import re
 import shutil
@@ -39,7 +44,7 @@ def inc_progress(*args):
     global completed
     completed += 1
 
-    if completed % 10 == 0:
+    if completed % 10 == 1:
         logger.info(
             f"Progress: {completed} / {tasks_count} ({completed / tasks_count * 100:.2f}%)"
         )

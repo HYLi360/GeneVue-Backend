@@ -1,23 +1,22 @@
 #  Copyright (c) 2026 HYLi360. All rights reserved.
 #
-#  see LICENSE in /LICENSE
-#  see side-package LICENSEs (if used) in /LICENSE_OF_SIDE_PACKAGES
-
+#  see license in LICENSE
+#  see side-package licenses in LICENSE_OF_SIDE_PACKAGES
 
 # ---Import.------------------------------------------------------------------------------------------
-from multiprocessing import Pool
-from rich.progress import Progress
-from typing import Literal
-from math import ceil
-import time
 import tempfile
+import time
+from math import ceil
+from multiprocessing import Pool
+from typing import Literal
 
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
+from rich.progress import Progress
 
 from genevue import console
-from genevue.External.PAML import YN00, ConfigCODEML, CODEML
-from genevue.External.frontend import muscle5, mafft
+from genevue.External.frontend import mafft, muscle5
+from genevue.External.PAML import CODEML, YN00, ConfigCODEML
 
 
 # ----------------------------------------------------------------------------------------------------
@@ -135,8 +134,9 @@ def calc_yn00(
             else records
         )
 
-    cds, pep = list(zip(total_records[0], total_records[1])), list(
-        zip(total_records[2], total_records[3])
+    cds, pep = (
+        list(zip(total_records[0], total_records[1])),
+        list(zip(total_records[2], total_records[3])),
     )
 
     args = [(cds[i], pep[i], align_method, yn00_p) for i in range(len(cds))]
@@ -156,7 +156,7 @@ def calc_yn00(
 
     used_seconds = time.time() - yn00_start
     console.log(
-        f"YN00 finished in {used_seconds//60:.0f} min {used_seconds%60:.1f} sec."
+        f"YN00 finished in {used_seconds // 60:.0f} min {used_seconds % 60:.1f} sec."
     )
     return results
 
@@ -209,8 +209,9 @@ def calc_codeml(
         )
 
     # Packup cds, pep
-    cds, pep = list(zip(total_records[0], total_records[1])), list(
-        zip(total_records[2], total_records[3])
+    cds, pep = (
+        list(zip(total_records[0], total_records[1])),
+        list(zip(total_records[2], total_records[3])),
     )
 
     # Packup all parameters
@@ -235,6 +236,6 @@ def calc_codeml(
 
     used_seconds = time.time() - codeml_start
     console.log(
-        f"CODEML pairwise dn/ds calculation finished in {used_seconds//60:.0f} min {used_seconds%60:.1f} sec."
+        f"CODEML pairwise dn/ds calculation finished in {used_seconds // 60:.0f} min {used_seconds % 60:.1f} sec."
     )
     return results

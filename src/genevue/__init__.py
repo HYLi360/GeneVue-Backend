@@ -9,7 +9,7 @@ import importlib.metadata
 from pathlib import Path
 
 from genevue.console import console
-from genevue.logsystem import LogLevel, setup_rich_logger, _setup_busco_bridge
+from genevue.logsystem import LogLevel, _setup_busco_bridge, setup_rich_logger
 
 # read version from pyproject.toml directly by importlib.metadata
 __version__ = importlib.metadata.version("genevue")
@@ -57,7 +57,6 @@ class GFF3FileNotFoundError(BaseException4GeneVue):
 
 
 class FileNotExistsError(BaseException4GeneVue):
-
     def __init__(self, file_path: Path) -> None:
         self.message = f"Can not found this file: {file_path}"
 
@@ -66,7 +65,6 @@ class FileNotExistsError(BaseException4GeneVue):
 
 
 class FormatNotSuitableError(BaseException4GeneVue):
-
     def __init__(self, message: str) -> None:
         self.message = message
 
@@ -75,7 +73,6 @@ class FormatNotSuitableError(BaseException4GeneVue):
 
 
 class NotImplementedMethodError(BaseException4GeneVue):
-
     def __init__(self, method_name: str):
         self.message = f"Not implemented method: {method_name}"
 
@@ -89,7 +86,6 @@ class DirNotEmptyError(BaseException4GeneVue):
 
 
 class AllFieldsEmptyError(BaseException4GeneVue):
-
     def __init__(self, *fields: str):
         self.message = f"Fill in at least one field: {', '.join(*fields)}"
 
@@ -98,7 +94,6 @@ class AllFieldsEmptyError(BaseException4GeneVue):
 
 
 class NothingFoundError(BaseException4GeneVue):
-
     def __init__(self, message: str = ""):
         self.message = message
 
@@ -107,7 +102,6 @@ class NothingFoundError(BaseException4GeneVue):
 
 
 class ResultIsNotSpeciesError(BaseException4GeneVue):
-
     def __init__(self, result: str):
         self.message = f"Expect get information of species, but get {result}"
 

@@ -4,21 +4,36 @@
 #  see side-package LICENSEs (if used) in /LICENSE_OF_SIDE_PACKAGES
 
 import gzip
-import re
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Optional, Self, Tuple
+from tempfile import TemporaryFile
+from typing import Dict, List, Literal, Optional, Self, Tuple
 from urllib.parse import unquote as url_unquote
 
 import polars as pl
-import rich
-from pandas import DataFrame as pandasDF
 from polars import DataFrame as PolarsDF
 from rich.table import Table
 
-from genevue import FormatNotSuitableError, console, setup_rich_logger
-from genevue.GXF.GFF3tools import GFF3OPS
+from genevue import (
+    BaseWarning4GeneVue,
+    FormatNotSuitableError,
+    console,
+    setup_rich_logger,
+)
 from genevue.Utils.FileSystem import check_filetype
+
+logger = setup_rich_logger(__name__, console)
+
+
+class GFF3DBLinesTooLargeWarning(BaseWarning4GeneVue):
+    def __init__(self, lines):
+        self.message = (
+            f"This GFF3 database has {lines} lines! that may run out your RAM. "
+            "Consider using 'GFF3().sink_to_parquet()' before read to avoid."
+        )
+
+    def __str__(self) -> str:
+        return f"{self.message}"
 
 
 class GFF3COL(Enum):
@@ -73,7 +88,7 @@ class GFF3:
     def __init__(self):
         self.db: PolarsDF = PolarsDF()
 
-    def load_from_file(self, gff3_path: str | Path) -> None:
+    def load_from_file(self, gff3_path: str | Path, batch_size: int = 500_000) -> None:
         """
         Read a GFF3 file, try to flatten its attribute column, and return it
         as a Polars DataFrame.
@@ -107,7 +122,8 @@ class GFF3:
         else:
             raise FormatNotSuitableError
 
-        data = []
+        data: List[Dict] = []
+        db: PolarsDF = PolarsDF()
 
         # main build
         for line in gff3:
@@ -154,36 +170,42 @@ class GFF3:
 
             data.append(feature)
 
-        gff3.close()
+            if len(data) > batch_size:
+                db = pl.concat([db, PolarsDF(data=data)], how="diagonal")
+                data = []
 
-        db = PolarsDF(data=data)
+        db = pl.concat([db, PolarsDF(data=data)], how="diagonal")
+        data = []
+        gff3.close()
 
         if db.filter(pl.col("type") == "mRNA").shape[0] == 0:
             # CDS -> gene, no txs
-            cds_gene_lookup = db.filter(pl.col("type") == "CDS").select(
-                pl.col("ID").alias("CDS"), pl.col("Parent").alias("gene")
+            # Build ID -> gene mapping as a lightweight dict to avoid
+            # materializing an intermediate DataFrame copy from join.
+            cds_to_gene = dict(
+                db.filter(pl.col("type") == "CDS")
+                .select("ID", pl.col("Parent").alias("gene"))
+                .iter_rows()
             )
-
-            # combine
-            db = db.join(cds_gene_lookup, left_on="ID", right_on="CDS", how="left")
+            db = db.with_columns(
+                pl.col("ID").replace_strict(cds_to_gene, default=None).alias("gene")
+            )
 
         else:
             # with txs
-            # Search backward to find the corresponding mRNA/CDS -> gene
-            mrna_gene_lookup = db.filter(pl.col("type") == "mRNA").select(
-                pl.col("ID").alias("_mrna_id"), pl.col("Parent").alias("_gene_of_mrna")
-            )
-            db = db.join(
-                mrna_gene_lookup, left_on="Parent", right_on="_mrna_id", how="left"
+            # Build mRNA.ID → mRNA.Parent(=gene) mapping as a dict
+            # instead of a join lookup to keep peak memory at ~1× db.
+            mrna_to_gene = dict(
+                db.filter(pl.col("type") == "mRNA").select("ID", "Parent").iter_rows()
             )
             db = db.with_columns(
                 pl.when(pl.col("type") == "gene")
                 .then(pl.col("ID"))
                 .when(pl.col("type") == "mRNA")
                 .then(pl.col("Parent"))
-                .otherwise(pl.col("_gene_of_mrna"))
+                .otherwise(pl.col("Parent").replace_strict(mrna_to_gene, default=None))
                 .alias("gene")
-            ).drop("_gene_of_mrna")
+            )
 
         self.db = db
 
@@ -254,32 +276,36 @@ class GFF3:
         Returns:
             DataFrame with columns: gene, best_id
         """
-        _expr = [
-            pl.col("ID")
-            .sort_by(pl.col("length"), descending=True)
-            .first()
-            .alias("best_id")
-        ]
+        # protein target rely on certain column
+        if (target == "protein") and ("protein_id" not in self.db.columns):
+            return PolarsDF()
 
-        # if protein_id appears in gff3 db?
-        # that is common in gff3 from NCBI
         if "protein_id" in self.db.columns:
-            _expr.append(
+            _expr = (
                 pl.col("protein_id")
                 .sort_by("length", descending=True)
                 .first()
-                .alias("best_protein"),
+                .alias("best_id")
+            )
+        else:
+            _expr = (
+                pl.col("ID")
+                .sort_by(pl.col("length"), descending=True)
+                .first()
+                .alias("best_id")
             )
 
-        cds = self.db.select(self.type.expr == "cds")
-        mrna = self.db.select(self.type.expr == "mRNA")
+        cds = self.db.filter(self.type.expr == "CDS")
+        mrna = self.db.filter(self.type.expr == "mRNA")
 
         if cds.is_empty() or (target == "CDS"):
             # No mRNA feature, or targets on CDS
-            # Use "retrospective_until" to get gene feature in any cases
-            # TODO: ???
-            cds_and_length = cds.group_by(pl.col("ID")).agg(pl.col("length").sum())
-            cds = cds.join(cds_and_length, left_on="ID", right_on="ID", how="left")
+            cds_and_length = dict(
+                cds.group_by(pl.col("ID")).agg(pl.col("length").sum()).iter_rows()
+            )
+            cds = cds.with_columns(
+                pl.col("ID").replace_strict(cds_and_length, 0).alias("length")
+            )
             return cds.group_by(pl.col("gene")).agg(_expr)
         else:
             # Have mRNA feature(s)
@@ -296,6 +322,104 @@ class GFF3:
                     how="left",
                 )
             return mrna.group_by(pl.col("gene")).agg(_expr)
+
+    def get_subfeatures(
+        self,
+        feature_id: str | List[str],
+        recursive: bool = False,
+        containing_self: bool = False,
+    ) -> PolarsDF:
+        """
+        Get children features of this feature.
+
+        Return an empty pl.DataFrame if
+          - feature name doesn't appear in gff3, or
+          - this feature has no children (a leaf feature).
+
+        Args:
+            feature_id
+            recursive
+            containing_self
+        """
+        if isinstance(feature_id, str):
+            feature_id: List[str] = [feature_id]
+        else:
+            feature_id = list(dict.fromkeys(feature_id))
+
+        if not recursive:
+            return self.db.filter(pl.col("Parent").is_in(feature_id))
+
+        res: List[PolarsDF] = []
+
+        if containing_self:
+            res.append(self.db.filter(pl.col("ID").is_in(feature_id)))
+
+        visited = set()
+
+        while feature_id:
+            children = self.db.filter(pl.col("Parent").is_in(feature_id))
+
+            if len(children) == 0:
+                break
+
+            res.append(children)
+
+            feature_id = [_id for _id in children["ID"].unique() if _id not in visited]
+            visited.update(feature_id)
+
+        if res:
+            return pl.concat(res)
+
+        return PolarsDF()
+
+    def get_parent_feature(
+        self,
+        feature_id: str | List[str],
+        level: int = -1,
+        until: str = "",
+        containing_self: bool = False,
+    ) -> PolarsDF:
+        if isinstance(feature_id, str):
+            feature_id: List[str] = [feature_id]
+        else:
+            feature_id = list(dict.fromkeys(feature_id))
+
+        res: List[PolarsDF] = []
+
+        if containing_self:
+            res.append(self.db.filter(pl.col("ID").is_in(feature_id)))
+
+        visited = set()
+
+        if level < 0:
+            level = 0
+
+        _expr = pl.col("ID").is_in(feature_id)
+
+        if until:
+            _expr = _expr and pl.col("Type") == until
+
+        while level + 1:
+            parents = self.db.filter(
+                pl.col("ID").is_in(
+                    self.db.filter(_expr)["Parent"].drop_nulls().unique()
+                )
+            )
+
+            if len(parents) == 0:
+                break
+
+            res.append(parents)
+
+            feature_id = [_id for _id in parents["ID"].unique() if _id not in visited]
+            visited.update(feature_id)
+
+            level -= 1
+
+        if res:
+            return pl.concat(res)
+
+        return PolarsDF()
 
     def get_chrom_length(self) -> Dict[str, int]:
         res = self.db.group_by(self.seqid.expr).agg(self.end.expr.max())
@@ -345,6 +469,71 @@ class GFF3:
     def to_parquet(self, out_path: str | Path):
         self.db.to_pandas().to_parquet(out_path)
 
+    def to_bed(
+        self,
+        bed_path: str | Path = ".",
+        mode: Literal["gene", "mRNA", "CDS", "protein"] = "gene",
+        chrname_filter: Optional[List[str]] = None,
+    ) -> PolarsDF:
+        if chrname_filter is None:
+            chrname_filter = self.db["seqid"].unique().to_list()
 
-g = GFF3()
-print(g.source.value)
+        df = self.db.filter(
+            (pl.col("type") == "gene") & pl.col("seqid").is_in(chrname_filter)
+        ).select(
+            pl.col("seqid").alias("chrom"),
+            pl.col("start").alias("chromStart"),
+            pl.col("end").alias("chromEnd"),
+            pl.col("ID").alias("name"),
+            pl.col("score"),
+            pl.col("strand_readable").alias("strand"),
+        )
+
+        match mode:
+            case "gene":
+                pass
+            case "mRNA":
+                mrna_ids = dict(self.get_longest(target="mRNA").iter_rows())
+                df = df.with_columns(
+                    pl.col("name").replace_strict(mrna_ids, default="")
+                ).filter(pl.col("name") != "")
+            case "CDS":
+                cds_ids = dict(self.get_longest(target="CDS").iter_rows())
+                df = df.with_columns(
+                    pl.col("name").replace_strict(cds_ids, default="")
+                ).filter(pl.col("name") != "")
+            case "protein":
+                protein_ids = dict(self.get_longest(target="protein").iter_rows())
+                df = df.with_columns(
+                    pl.col("name").replace_strict(protein_ids, default="")
+                ).filter(pl.col("name") != "")
+
+        if str(bed_path) != ".":
+            df.write_csv(bed_path, separator="\t", include_header=False)
+
+        return df
+
+    @property
+    def db_sources(self) -> List[str]:
+        if self.db.shape[0] == 0:
+            return []
+        else:
+            return self.db.select("source").to_series().unique().to_list()
+
+    @property
+    def db_types(self) -> List[str]:
+        if self.db.shape[0] == 0:
+            return []
+        else:
+            return self.db.select("type").to_series().unique().to_list()
+
+    @property
+    def db_sources_and_types(self) -> List[Tuple[str, str]]:
+        if self.db.shape[0] == 0:
+            return []
+        else:
+            return list(self.db.select(["source", "type"]).unique().iter_rows())
+
+    @property
+    def db_seqids(self) -> List[str]:
+        return self.db["seqid"].unique().sort().to_list()

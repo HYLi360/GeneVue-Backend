@@ -9,7 +9,7 @@ from rich.progress import Progress
 from rich.table import Table
 
 from genevue import console
-from genevue.Coll._corecoll import DoCollinearity, CollRes
+from genevue.Evo.Coll._corecoll import CollRes, DoCollinearity
 
 
 @dataclass(

@@ -1,9 +1,10 @@
 #  Copyright (c) 2026 HYLi360. All rights reserved.
 #
-#  see LICENSE in /LICENSE
-#  see side-package LICENSEs (if used) in /LICENSE_OF_SIDE_PACKAGES
+#  see license in LICENSE
+#  see side-package licenses in LICENSE_OF_SIDE_PACKAGES
 
-from typing import Literal, Dict
+from typing import Dict, Literal
+
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 

@@ -3,19 +3,20 @@
 #  see LICENSE in /LICENSE
 #  see side-package LICENSEs (if used) in /LICENSE_OF_SIDE_PACKAGES
 
-from typing import Callable, Annotated, Literal
+from typing import Annotated, Callable, Literal
 
 import typer
 
-from genevue import console, __full_version__
+from genevue import __full_version__, console
+from genevue.configure import Configure
+from genevue.Diagnosis import Diagnosis
+from genevue.Preprocessing import app_preprocessing
 from genevue.QC import app_qc
 from genevue.Remote import app_remote
 from genevue.Sequences import app_sequence
-from genevue.Utils import app_file
 from genevue.Taxonomy import app_taxonomy
+from genevue.Utils import app_file
 from genevue.Utils.Completion import install_completion, uninstall_completion
-from genevue.configure import Configure
-from genevue.Diagnosis import Diagnosis
 
 COPYRIGHT = """
 Copyright (c) 2026 HYLi360.
@@ -128,6 +129,8 @@ def _build_app(_: Callable, configure: Configure) -> typer.Typer:
 
     app_config = _build_config_commands(_, configure)
     app.add_typer(app_config, name="config")
+
+    app.add_typer(app_preprocessing, name="preprocessing")
 
     @app.command(
         name="install_completion",
